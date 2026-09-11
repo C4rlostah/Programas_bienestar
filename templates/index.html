@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f4f7f6; }
         .bg-gradient-guinda { background: linear-gradient(135deg, #691C32, #8d2643); }
@@ -16,103 +17,96 @@
         .form-control { border-radius: 0.5rem; border: 1px solid #dee2e6; padding: 0.75rem 1rem; background-color: #f8f9fa; transition: 0.3s; }
         .form-control:focus { border-color: #691C32; box-shadow: 0 0 0 0.25rem rgba(105, 28, 50, 0.15); background-color: #fff; }
         .btn-guinda { background: linear-gradient(135deg, #691C32, #8d2643); color: white; border: none; border-radius: 0.5rem; font-weight: 600; transition: 0.3s; }
-        .btn-guinda:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(105, 28, 50, 0.4); color: white; }
+        .btn-guinda:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(105, 28, 50, 0.4); }
         .section-title { font-size: 1rem; font-weight: 700; color: #691C32; border-bottom: 2px solid #f0f0f0; padding-bottom: 0.5rem; margin-top: 1.5rem; margin-bottom: 1rem; }
-        .preview-box { height: 120px; display: flex; align-items: center; justify-content: center; background: #f8f9fa; border: 2px dashed #cbd5e1; border-radius: 0.5rem; margin-bottom: 0.5rem; overflow: hidden; transition: 0.3s; }
+        .preview-box { height: 120px; display: flex; align-items: center; justify-content: center; background: #f8f9fa; border: 2px dashed #cbd5e1; border-radius: 0.5rem; margin-bottom: 0.5rem; overflow: hidden; transition: 0.3s; cursor: pointer;}
         .preview-box:hover { border-color: #691C32; background: #fff; }
         .preview-box img { max-height: 100%; max-width: 100%; display: none; object-fit: contain; }
-        #camara_modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 1050; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
-        #video { width: 90%; max-width: 450px; border: 4px solid #fff; border-radius: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        #camara_modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 1050; flex-direction: column; align-items: center; justify-content: center; }
+        #video { width: 90%; max-width: 450px; border: 4px solid #fff; border-radius: 1rem; }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-dark bg-gradient-guinda shadow-sm py-3">
-        <div class="container">
+    <!-- Barra de Navegación -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient-guinda shadow-sm py-3 mb-4">
+        <div class="container-fluid px-4">
             <a class="navbar-brand fw-bold fs-4" href="/"><i class="bi bi-shield-check me-2"></i>Captura Bienestar</a>
-            <a class="btn btn-light text-guinda fw-bold rounded-pill px-4 shadow-sm" href="/registros"><i class="bi bi-table me-2"></i>Ver Base de Datos</a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#menuNavegacion">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="menuNavegacion">
+                <ul class="navbar-nav ms-auto align-items-center gap-3 mt-3 mt-lg-0">
+                    <li class="nav-item">
+                        <div class="bg-white rounded-pill px-3 py-2 shadow-sm d-flex align-items-center">
+                            <i class="bi bi-person-circle text-guinda fs-5 me-2"></i>
+                            <span class="fw-bold text-dark small me-2">{{ user.username }}</span>
+                            <span class="badge bg-secondary" style="font-size: 0.7rem;">{{ user.rol|upper }}</span>
+                        </div>
+                    </li>
+                    {% if user.rol in ['admin', 'soporte'] %}
+                    <li class="nav-item"><a href="/registros" class="btn btn-outline-light rounded-pill px-4 fw-bold btn-sm py-2"><i class="bi bi-database-fill me-2"></i>Base de Datos</a></li>
+                    {% endif %}
+                    {% if user.rol == 'admin' %}
+                    <li class="nav-item"><a href="/usuarios" class="btn btn-outline-light rounded-pill px-4 fw-bold btn-sm py-2"><i class="bi bi-people-fill me-2"></i>Personal</a></li>
+                    <li class="nav-item"><a href="/auditoria" class="btn btn-outline-light rounded-pill px-4 fw-bold btn-sm py-2"><i class="bi bi-list-check me-2"></i>Auditoría</a></li>
+                    {% endif %}
+                    <li class="nav-item"><a href="/logout" class="btn btn-danger rounded-pill px-4 fw-bold btn-sm py-2 shadow-sm"><i class="bi bi-box-arrow-right me-2"></i>Salir</a></li>
+                </ul>
+            </div>
         </div>
     </nav>
 
-    <div class="container mt-5 mb-5" style="max-width: 650px;">
+    <!-- Contenido del Formulario (Igual) -->
+    <div class="container mt-4 mb-5" style="max-width: 650px;">
         <div class="card card-custom">
             <div class="card-header bg-white text-center py-4 border-0">
                 <h3 class="mb-0 text-guinda fw-bold">Nuevo Beneficiario</h3>
                 <p class="text-muted small mb-0">Complete los datos para generar el registro</p>
             </div>
             <div class="card-body px-4 px-md-5 pb-5 pt-0">
-                <form id="formularioRegistro">
+                <form id="formularioRegistro" autocomplete="off"></form>
                     <div class="section-title"><i class="bi bi-person-badge me-2"></i>Datos Personales</div>
                     <div class="mb-3">
                         <label class="form-label text-muted small fw-bold mb-1">Nombre Completo</label>
-                        <input type="text" name="nombre" class="form-control" placeholder="Ej. Carlos Misael" required>
+                        <input type="text" name="nombre" class="form-control" required>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label text-muted small fw-bold mb-1">Fecha de Nacimiento</label>
-                            <input type="date" name="fecha_nacimiento" class="form-control" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label text-muted small fw-bold mb-1">Sección Electoral</label>
-                            <input type="text" name="seccion" class="form-control" pattern="^(\d+|N/A)$" oninput="this.value = this.value.toUpperCase();" required placeholder="0123 o N/A">
-                        </div>
+                        <div class="col-6 mb-3"><label class="form-label text-muted small fw-bold mb-1">F. Nacimiento</label><input type="date" name="fecha_nacimiento" class="form-control" required></div>
+                        <div class="col-6 mb-3"><label class="form-label text-muted small fw-bold mb-1">Sección</label><input type="text" name="seccion" class="form-control" pattern="^(\d+|N/A)$" oninput="this.value = this.value.toUpperCase();" required placeholder="0123 o N/A"></div>
                     </div>
 
                     <div class="section-title"><i class="bi bi-geo-alt me-2"></i>Dirección</div>
                     <div class="row">
-                        <div class="col-md-8 mb-3">
-                            <label class="form-label text-muted small fw-bold mb-1">Calle</label>
-                            <input type="text" name="calle" class="form-control" required>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label text-muted small fw-bold mb-1">N° Exterior</label>
-                            <input type="text" name="num_ext" class="form-control" required>
-                        </div>
+                        <div class="col-8 mb-3"><label class="form-label text-muted small fw-bold mb-1">Calle</label><input type="text" name="calle" class="form-control" required></div>
+                        <div class="col-4 mb-3"><label class="form-label text-muted small fw-bold mb-1">N° Ext</label><input type="text" name="num_ext" class="form-control" required></div>
                     </div>
                     <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label text-muted small fw-bold mb-1">N° Interior</label>
-                            <input type="text" name="num_int" class="form-control" placeholder="(Opcional)">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label text-muted small fw-bold mb-1">Código Postal</label>
-                            <input type="text" name="cp" class="form-control" pattern="\d{5}" required>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label text-muted small fw-bold mb-1">Fraccionamiento</label>
-                            <input type="text" name="fraccionamiento" class="form-control" required>
-                        </div>
+                        <div class="col-4 mb-3"><label class="form-label text-muted small fw-bold mb-1">N° Int</label><input type="text" name="num_int" class="form-control"></div>
+                        <div class="col-4 mb-3"><label class="form-label text-muted small fw-bold mb-1">C.P.</label><input type="text" name="cp" class="form-control" pattern="\d{5}" required></div>
+                        <div class="col-4 mb-3"><label class="form-label text-muted small fw-bold mb-1">Fraccionamiento</label><input type="text" name="fraccionamiento" class="form-control" required></div>
                     </div>
 
                     <div class="section-title"><i class="bi bi-telephone me-2"></i>Contacto y Asignación</div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label text-muted small fw-bold mb-1">Teléfono</label>
-                            <input type="tel" name="telefono" class="form-control" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label text-muted small fw-bold mb-1">Folio de Tarjeta</label>
-                            <input type="text" name="folio_tarjeta" class="form-control text-guinda fw-bold" style="background-color:#fff3f5; border-color:#ffccd5;" required placeholder="000-1234">
-                        </div>
+                        <div class="col-6 mb-3"><label class="form-label text-muted small fw-bold mb-1">Teléfono</label><input type="tel" name="telefono" class="form-control" required></div>
+                        <div class="col-6 mb-3"><label class="form-label text-muted small fw-bold mb-1">Folio Tarjeta</label><input type="text" name="folio_tarjeta" class="form-control text-guinda fw-bold" style="background-color:#fff3f5; border-color:#ffccd5;" required></div>
                     </div>
 
                     <div class="section-title"><i class="bi bi-camera me-2"></i>Documentación (Opcional)</div>
                     <div class="row mb-4 text-center">
                         <div class="col-6">
-                            <div class="preview-box" onclick="abrirCamara('frente')" style="cursor:pointer;">
-                                <img id="preview_frente">
-                                <div id="text_frente" class="text-muted"><i class="bi bi-camera fs-3 d-block mb-1"></i><small>INE Frente</small></div>
+                            <div class="preview-box" onclick="abrirCamara('frente')">
+                                <img id="preview_frente"><div id="text_frente" class="text-muted"><i class="bi bi-camera fs-3 d-block mb-1"></i><small>INE Frente</small></div>
                             </div>
                             <input type="hidden" name="foto_frente" id="input_frente">
                         </div>
                         <div class="col-6">
-                            <div class="preview-box" onclick="abrirCamara('reverso')" style="cursor:pointer;">
-                                <img id="preview_reverso">
-                                <div id="text_reverso" class="text-muted"><i class="bi bi-camera fs-3 d-block mb-1"></i><small>INE Reverso</small></div>
+                            <div class="preview-box" onclick="abrirCamara('reverso')">
+                                <img id="preview_reverso"><div id="text_reverso" class="text-muted"><i class="bi bi-camera fs-3 d-block mb-1"></i><small>INE Reverso</small></div>
                             </div>
                             <input type="hidden" name="foto_reverso" id="input_reverso">
                         </div>
                     </div>
-
                     <button type="submit" class="btn btn-guinda w-100 py-3 fs-5 mt-2"><i class="bi bi-cloud-arrow-up me-2"></i>Guardar Registro</button>
                 </form>
             </div>
@@ -133,49 +127,18 @@
     <script>
         let streamActual = null, objetivoActual = '';
         async function abrirCamara(objetivo) {
-            objetivoActual = objetivo;
-            document.getElementById('camara_titulo').innerText = objetivo === 'frente' ? 'Tomar INE Frente' : 'Tomar INE Reverso';
-            document.getElementById('camara_modal').style.display = 'flex';
-            try {
-                streamActual = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                document.getElementById('video').srcObject = streamActual;
-            } catch (err) {
-                Swal.fire('Error', 'No se detectó cámara', 'error'); cerrarCamara();
-            }
+            objetivoActual = objetivo; document.getElementById('camara_titulo').innerText = objetivo === 'frente' ? 'Tomar INE Frente' : 'Tomar INE Reverso'; document.getElementById('camara_modal').style.display = 'flex';
+            try { streamActual = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); document.getElementById('video').srcObject = streamActual; } catch (err) { Swal.fire('Error', 'No se detectó cámara', 'error'); cerrarCamara(); }
         }
-        function cerrarCamara() {
-            if (streamActual) { streamActual.getTracks().forEach(t => t.stop()); streamActual = null; }
-            document.getElementById('camara_modal').style.display = 'none';
-        }
+        function cerrarCamara() { if (streamActual) { streamActual.getTracks().forEach(t => t.stop()); streamActual = null; } document.getElementById('camara_modal').style.display = 'none'; }
         function capturarFoto() {
-            const video = document.getElementById('video'), canvas = document.getElementById('canvas');
-            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-            document.getElementById(`input_${objetivoActual}`).value = dataUrl;
-            document.getElementById(`preview_${objetivoActual}`).src = dataUrl;
-            document.getElementById(`preview_${objetivoActual}`).style.display = 'block';
-            document.getElementById(`text_${objetivoActual}`).style.display = 'none';
-            cerrarCamara();
+            const video = document.getElementById('video'), canvas = document.getElementById('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0); const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            document.getElementById(`input_${objetivoActual}`).value = dataUrl; document.getElementById(`preview_${objetivoActual}`).src = dataUrl; document.getElementById(`preview_${objetivoActual}`).style.display = 'block'; document.getElementById(`text_${objetivoActual}`).style.display = 'none'; cerrarCamara();
         }
-
         document.getElementById('formularioRegistro').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const response = await fetch('/agregar', { method: 'POST', body: new FormData(this) });
-            const data = await response.json();
-            if (data.status === 'success') {
-                Swal.fire({
-                    title: '¡Éxito!', text: 'Beneficiario guardado.', icon: 'success', 
-                    confirmButtonColor: '#691C32', timer: 1500, customClass: { popup: 'rounded-4' }, showConfirmButton: false
-                });
-                this.reset();
-                ['frente', 'reverso'].forEach(o => {
-                    document.getElementById(`input_${o}`).value = "";
-                    document.getElementById(`preview_${o}`).style.display = "none";
-                    document.getElementById(`text_${o}`).style.display = "block";
-                });
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
+            e.preventDefault(); const response = await fetch('/agregar', { method: 'POST', body: new FormData(this) }); const data = await response.json();
+            if (data.status === 'success') { Swal.fire({title: '¡Éxito!', icon: 'success', confirmButtonColor: '#691C32', timer: 1500, showConfirmButton: false}); this.reset(); ['frente', 'reverso'].forEach(o => { document.getElementById(`input_${o}`).value = ""; document.getElementById(`preview_${o}`).style.display = "none"; document.getElementById(`text_${o}`).style.display = "block"; }); window.scrollTo({ top: 0, behavior: 'smooth' });}
         });
     </script>
 </body>

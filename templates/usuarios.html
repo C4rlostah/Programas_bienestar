@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal - Bienestar</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f4f7f6; }
+        .text-guinda { color: #691C32 !important; }
+        .bg-gradient-guinda { background: linear-gradient(135deg, #691C32, #8d2643); }
+        .btn-guinda { background: linear-gradient(135deg, #691C32, #8d2643); color: white; border: none; font-weight: 600; }
+        .table-custom { border-collapse: separate; border-spacing: 0 0.5rem; }
+        .table-custom thead th { border: none; color: #6c757d; font-weight: 600; text-transform: uppercase; font-size: 0.8rem; }
+        .table-custom tbody tr { background-color: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.03); transition: 0.2s; }
+        .table-custom tbody td { border: none; padding: 1rem; vertical-align: middle; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-gradient-guinda shadow-sm py-3 mb-4">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand fw-bold fs-4" href="/"><i class="bi bi-people-fill me-2"></i>Gestión de Personal</a>
+            <div class="d-flex gap-2">
+                <a class="btn btn-outline-light fw-bold rounded-pill px-4" href="/"><i class="bi bi-arrow-left me-2"></i>Volver al inicio</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container pb-5">
+        <div class="row mb-4 align-items-center">
+            <div class="col-md-6">
+                <div class="input-group shadow-sm rounded-pill overflow-hidden">
+                    <span class="input-group-text bg-white border-0 ps-4"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="buscadorUsuarios" class="form-control border-0 py-3" placeholder="Buscar usuario..." onkeyup="filtrarTabla()">
+                </div>
+            </div>
+            <div class="col-md-6 text-md-end mt-3 mt-md-0">
+                <button class="btn btn-guinda rounded-pill px-4 py-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoUsuario">
+                    <i class="bi bi-person-plus-fill me-2"></i>Crear Nuevo Usuario
+                </button>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-custom text-center align-middle" id="tablaUsuarios">
+                <thead>
+                    <tr>
+                        <th>ID</th><th>Usuario</th><th>Rol</th><th>Estado</th><th class="text-end pe-4">Acciones Admin</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in usuarios_db %}
+                    <tr>
+                        <td class="text-muted fw-bold">#{{ u.id }}</td>
+                        <td class="fw-bold text-dark fs-5"><i class="bi bi-person-badge text-guinda me-2"></i>{{ u.username }}</td>
+                        <td>
+                            {% if u.rol == 'admin' %} <span class="badge bg-danger rounded-pill px-3 py-2"><i class="bi bi-star-fill me-1"></i>Admin</span>
+                            {% elif u.rol == 'soporte' %} <span class="badge bg-warning text-dark rounded-pill px-3 py-2"><i class="bi bi-headset me-1"></i>Soporte</span>
+                            {% else %} <span class="badge bg-primary rounded-pill px-3 py-2"><i class="bi bi-pencil-square me-1"></i>Capturador</span> {% endif %}
+                        </td>
+                        <td>
+                            {% if u.estado == 'En línea' %} <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill px-3"><i class="bi bi-globe me-1"></i>En Línea</span>
+                            {% else %} <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary rounded-pill px-3"><i class="bi bi-dash-circle me-1"></i>Offline</span> {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            {% if u.username != user.username %}
+                                <button class="btn btn-sm btn-outline-dark rounded-pill me-1 shadow-sm" onclick="cambiarClave('{{ u.id }}', '{{ u.username }}')"><i class="bi bi-key-fill me-1"></i>Clave</button>
+                                {% if u.estado == 'En línea' %}
+                                <button class="btn btn-sm btn-outline-warning rounded-pill me-1 shadow-sm" onclick="forzarCierre('{{ u.id }}', '{{ u.username }}')"><i class="bi bi-door-closed-fill"></i></button>
+                                {% endif %}
+                                <button class="btn btn-sm btn-danger rounded-circle shadow-sm" style="width: 32px; height: 32px;" onclick="eliminarUsuario('{{ u.id }}', '{{ u.username }}')"><i class="bi bi-trash3-fill"></i></button>
+                            {% else %}
+                                <span class="text-muted small fw-bold">Mi Cuenta</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal Nuevo -->
+    <div class="modal fade" id="modalNuevoUsuario" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+                <div class="modal-header bg-gradient-guinda text-white border-0 py-3">
+                    <h5 class="modal-title fw-bold">Alta de Personal</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-light">
+                    <form id="formNuevoUsuario" autocomplete="off">
+                        <div class="mb-3"><label class="form-label small fw-bold">Usuario (Login)</label><input type="text" name="username" class="form-control rounded-3" required pattern="[a-zA-Z0-9_.-]+"></div>
+                        <div class="mb-3"><label class="form-label small fw-bold">Contraseña</label><input type="password" name="password" class="form-control rounded-3" required></div>
+                        <div class="mb-4">
+                            <label class="form-label small fw-bold">Rol</label>
+                            <select name="rol" class="form-select rounded-3" required>
+                                <option value="capturador" selected>Capturador (Solo llena formularios)</option>
+                                <option value="soporte">Soporte (Ve Base de Datos y Descarga Excel)</option>
+                                <option value="admin">Administrador (Control total + Auditoría)</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer border-0 bg-white p-3">
+                    <button class="btn btn-guinda rounded-pill px-4 w-100" onclick="guardarUsuario()">Crear Acceso</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function filtrarTabla() {
+            const filter = document.getElementById("buscadorUsuarios").value.toLowerCase(), tr = document.getElementById("tablaUsuarios").getElementsByTagName("tr");
+            for (let i = 1; i < tr.length; i++) {
+                const tdUsername = tr[i].getElementsByTagName("td")[1], tdRol = tr[i].getElementsByTagName("td")[2];
+                if (tdUsername || tdRol) {
+                    tr[i].style.display = ((tdUsername.textContent || tdUsername.innerText).toLowerCase().indexOf(filter) > -1 || (tdRol.textContent || tdRol.innerText).toLowerCase().indexOf(filter) > -1) ? "" : "none";
+                }       
+            }
+        }
+        async function guardarUsuario() {
+            const form = document.getElementById('formNuevoUsuario'); if(!form.checkValidity()){ form.reportValidity(); return; }
+            const res = await (await fetch(`/usuarios/crear`, { method: 'POST', body: new FormData(form) })).json();
+            if (res.status === 'success') { Swal.fire('¡Éxito!', res.message, 'success').then(() => location.reload()); } else { Swal.fire('Error', res.message, 'error'); }
+        }
+        async function cambiarClave(id, username) {
+            const { value: password } = await Swal.fire({ title: `Clave para ${username}`, input: 'password', text: 'Al cambiarla se cerrará la sesión activa del usuario.', inputPlaceholder: 'Nueva contraseña', showCancelButton: true });
+            if (password) {
+                const fd = new FormData(); fd.append('new_password', password);
+                const res = await (await fetch(`/usuarios/password/${id}`, { method: 'POST', body: fd })).json();
+                if (res.status === 'success') Swal.fire('Actualizada', '', 'success').then(() => location.reload());
+            }
+        }
+        async function eliminarUsuario(id, username) {
+            const { isConfirmed } = await Swal.fire({ title: `¿Eliminar a ${username}?`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', confirmButtonText: 'Eliminar' });
+            if (isConfirmed) {
+                const res = await (await fetch(`/usuarios/eliminar/${id}`, { method: 'POST' })).json();
+                if (res.status === 'success') location.reload();
+            }
+        }
+        async function forzarCierre(id, username) {
+            const { isConfirmed } = await Swal.fire({ title: `¿Expulsar a ${username}?`, text: "Su sesión actual será cerrada inmediatamente.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#ffc107', confirmButtonText: 'Sí, desconectar' });
+            if (isConfirmed) {
+                const res = await (await fetch(`/usuarios/logout/${id}`, { method: 'POST' })).json();
+                if (res.status === 'success') location.reload();
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,3 +1,4 @@
 venv/
-bienestar.db
 __pycache__/
+bienestar.db
+.env
