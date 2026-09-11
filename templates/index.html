@@ -126,19 +126,93 @@
 
     <script>
         let streamActual = null, objetivoActual = '';
+        
         async function abrirCamara(objetivo) {
-            objetivoActual = objetivo; document.getElementById('camara_titulo').innerText = objetivo === 'frente' ? 'Tomar INE Frente' : 'Tomar INE Reverso'; document.getElementById('camara_modal').style.display = 'flex';
-            try { streamActual = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); document.getElementById('video').srcObject = streamActual; } catch (err) { Swal.fire('Error', 'No se detectó cámara', 'error'); cerrarCamara(); }
+            objetivoActual = objetivo; 
+            document.getElementById('camara_titulo').innerText = objetivo === 'frente' ? 'Tomar INE Frente' : 'Tomar INE Reverso'; 
+            document.getElementById('camara_modal').style.display = 'flex';
+            try { 
+                streamActual = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); 
+                document.getElementById('video').srcObject = streamActual; 
+            } catch (err) { 
+                Swal.fire('Error', 'No se detectó cámara', 'error'); 
+                cerrarCamara(); 
+            }
         }
-        function cerrarCamara() { if (streamActual) { streamActual.getTracks().forEach(t => t.stop()); streamActual = null; } document.getElementById('camara_modal').style.display = 'none'; }
+        
+        function cerrarCamara() { 
+            if (streamActual) { 
+                streamActual.getTracks().forEach(t => t.stop()); 
+                streamActual = null; 
+            } 
+            document.getElementById('camara_modal').style.display = 'none'; 
+        }
+        
         function capturarFoto() {
-            const video = document.getElementById('video'), canvas = document.getElementById('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0); const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-            document.getElementById(`input_${objetivoActual}`).value = dataUrl; document.getElementById(`preview_${objetivoActual}`).src = dataUrl; document.getElementById(`preview_${objetivoActual}`).style.display = 'block'; document.getElementById(`text_${objetivoActual}`).style.display = 'none'; cerrarCamara();
+            const video = document.getElementById('video'), canvas = document.getElementById('canvas'); 
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0); 
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            
+            document.getElementById(`input_${objetivoActual}`).value = dataUrl; 
+            document.getElementById(`preview_${objetivoActual}`).src = dataUrl; 
+            document.getElementById(`preview_${objetivoActual}`).style.display = 'block'; 
+            document.getElementById(`text_${objetivoActual}`).style.display = 'none'; 
+            cerrarCamara();
         }
+
         document.getElementById('formularioRegistro').addEventListener('submit', async function(e) {
-            e.preventDefault(); const response = await fetch('/agregar', { method: 'POST', body: new FormData(this) }); const data = await response.json();
-            if (data.status === 'success') { Swal.fire({title: '¡Éxito!', icon: 'success', confirmButtonColor: '#691C32', timer: 1500, showConfirmButton: false}); this.reset(); ['frente', 'reverso'].forEach(o => { document.getElementById(`input_${o}`).value = ""; document.getElementById(`preview_${o}`).style.display = "none"; document.getElementById(`text_${o}`).style.display = "block"; }); window.scrollTo({ top: 0, behavior: 'smooth' });}
+            e.preventDefault(); 
+            
+            // 1. Efecto de carga en el botón para que el usuario sepa que sí funciona
+            const btn = this.querySelector('button[type="submit"]');
+            const btnOriginalText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Guardando base de datos...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/agregar', { method: 'POST', body: new FormData(this) }); 
+                
+                // 2. Atrapar errores de validación del servidor (FastAPI)
+                if (!response.ok) {
+                    Swal.fire('Datos Inválidos', 'El sistema rechazó la información. Verifica que el C.P. tenga exactamente 5 números y no dejes espacios vacíos al final de los textos.', 'error');
+                    btn.innerHTML = btnOriginalText;
+                    btn.disabled = false;
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                // 3. Evaluar respuesta exitosa o de error de nuestro backend
+                if (data.status === 'success') { 
+                    Swal.fire({
+                        title: '¡Registro Exitoso!', 
+                        text: 'El beneficiario ya está en la nube.', 
+                        icon: 'success', 
+                        confirmButtonColor: '#691C32', 
+                        timer: 2000, 
+                        showConfirmButton: false
+                    }); 
+                    
+                    // Limpiar formulario y fotos
+                    this.reset(); 
+                    ['frente', 'reverso'].forEach(o => { 
+                        document.getElementById(`input_${o}`).value = ""; 
+                        document.getElementById(`preview_${o}`).style.display = "none"; 
+                        document.getElementById(`text_${o}`).style.display = "block"; 
+                    }); 
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    
+                } else {
+                    Swal.fire('Error', data.message || 'Hubo un problema al guardar el registro.', 'error');
+                }
+            } catch(error) {
+                Swal.fire('Falla de Conexión', 'Se perdió la conexión con el servidor. Intenta de nuevo.', 'error');
+            } finally {
+                // Siempre devolver el botón a su estado normal
+                btn.innerHTML = btnOriginalText;
+                btn.disabled = false;
+            }
         });
     </script>
 </body>
