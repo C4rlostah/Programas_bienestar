@@ -9,25 +9,30 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    
     <style>
         body { font-family: 'Poppins', sans-serif; background-color: #f4f7f6; }
         .bg-gradient-guinda { background: linear-gradient(135deg, #691C32, #8d2643); }
         .text-guinda { color: #691C32 !important; }
         .card-custom { border: none; border-radius: 1rem; box-shadow: 0 10px 30px rgba(0,0,0,0.08); overflow: hidden; }
-        .form-control { border-radius: 0.5rem; border: 1px solid #dee2e6; padding: 0.75rem 1rem; background-color: #f8f9fa; transition: 0.3s; }
-        .form-control:focus { border-color: #691C32; box-shadow: 0 0 0 0.25rem rgba(105, 28, 50, 0.15); background-color: #fff; }
+        .form-control, .form-select { border-radius: 0.5rem; border: 1px solid #dee2e6; padding: 0.75rem 1rem; background-color: #f8f9fa; transition: 0.3s; }
+        .form-control:focus, .form-select:focus { border-color: #691C32; box-shadow: 0 0 0 0.25rem rgba(105, 28, 50, 0.15); background-color: #fff; }
         .btn-guinda { background: linear-gradient(135deg, #691C32, #8d2643); color: white; border: none; border-radius: 0.5rem; font-weight: 600; transition: 0.3s; }
         .btn-guinda:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(105, 28, 50, 0.4); }
         .section-title { font-size: 1rem; font-weight: 700; color: #691C32; border-bottom: 2px solid #f0f0f0; padding-bottom: 0.5rem; margin-top: 1.5rem; margin-bottom: 1rem; }
         .preview-box { height: 120px; display: flex; align-items: center; justify-content: center; background: #f8f9fa; border: 2px dashed #cbd5e1; border-radius: 0.5rem; margin-bottom: 0.5rem; overflow: hidden; transition: 0.3s; cursor: pointer;}
         .preview-box:hover { border-color: #691C32; background: #fff; }
         .preview-box img { max-height: 100%; max-width: 100%; display: none; object-fit: contain; }
+        
         #camara_modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 1050; flex-direction: column; align-items: center; justify-content: center; }
-        #video { width: 90%; max-width: 450px; border: 4px solid #fff; border-radius: 1rem; }
+        .video-container { position: relative; width: 95%; max-width: 450px; display: flex; justify-content: center; align-items: center; }
+        #video { width: 100%; max-height: 50vh; object-fit: cover; border-radius: 1rem; border: 3px solid #fff; }
+        #scanner_overlay { display: none; position: absolute; top: 5%; left: 5%; width: 90%; height: 90%; border: 4px dashed #0d6efd; border-radius: 10px; pointer-events: none; z-index: 10; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6); }
+        .scanning-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-weight: bold; font-size: 1.2rem; text-shadow: 2px 2px 4px #000; text-align: center;}
     </style>
 </head>
 <body>
-    <!-- Barra de Navegación -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-gradient-guinda shadow-sm py-3 mb-4">
         <div class="container-fluid px-4">
             <a class="navbar-brand fw-bold fs-4" href="/"><i class="bi bi-shield-check me-2"></i>Captura Bienestar</a>
@@ -43,6 +48,7 @@
                             <span class="badge bg-secondary" style="font-size: 0.7rem;">{{ user.rol|upper }}</span>
                         </div>
                     </li>
+                    
                     {% if user.rol in ['admin', 'soporte'] %}
                     <li class="nav-item"><a href="/registros" class="btn btn-outline-light rounded-pill px-4 fw-bold btn-sm py-2"><i class="bi bi-database-fill me-2"></i>Base de Datos</a></li>
                     {% endif %}
@@ -50,42 +56,137 @@
                     <li class="nav-item"><a href="/usuarios" class="btn btn-outline-light rounded-pill px-4 fw-bold btn-sm py-2"><i class="bi bi-people-fill me-2"></i>Personal</a></li>
                     <li class="nav-item"><a href="/auditoria" class="btn btn-outline-light rounded-pill px-4 fw-bold btn-sm py-2"><i class="bi bi-list-check me-2"></i>Auditoría</a></li>
                     {% endif %}
+                    
                     <li class="nav-item"><a href="/logout" class="btn btn-danger rounded-pill px-4 fw-bold btn-sm py-2 shadow-sm"><i class="bi bi-box-arrow-right me-2"></i>Salir</a></li>
                 </ul>
             </div>
         </div>
     </nav>
 
-    <!-- Contenido del Formulario -->
     <div class="container mt-4 mb-5" style="max-width: 650px;">
         <div class="card card-custom">
             <div class="card-header bg-white text-center py-4 border-0">
                 <h3 class="mb-0 text-guinda fw-bold">Nuevo Beneficiario</h3>
                 <p class="text-muted small mb-0">Complete los datos para generar el registro</p>
             </div>
-            <div class="card-body px-4 px-md-5 pb-5 pt-0">
+            <div class="card-body px-4 px-md-5 pb-5 pt-4">
                 
-                <!-- ¡LA ETIQUETA FORM AHORA ENVUELVE TODO! -->
+                <button type="button" class="btn btn-primary w-100 py-3 mb-4 shadow-sm fw-bold rounded-4" onclick="abrirEscaner()">
+                    <i class="bi bi-upc-scan fs-5 me-2"></i>Escáner de INE
+                </button>
+
                 <form id="formularioRegistro" autocomplete="off">
                     <div class="section-title"><i class="bi bi-person-badge me-2"></i>Datos Personales</div>
                     <div class="mb-3">
                         <label class="form-label text-muted small fw-bold mb-1">Nombre Completo</label>
-                        <input type="text" name="nombre" class="form-control" required>
+                        <input type="text" name="nombre" id="form_nombre" class="form-control" required>
                     </div>
                     <div class="row">
-                        <div class="col-6 mb-3"><label class="form-label text-muted small fw-bold mb-1">F. Nacimiento</label><input type="date" name="fecha_nacimiento" class="form-control" required></div>
-                        <div class="col-6 mb-3"><label class="form-label text-muted small fw-bold mb-1">Sección</label><input type="text" name="seccion" class="form-control" pattern="^(\d+|N/A)$" oninput="this.value = this.value.toUpperCase();" required placeholder="0123 o N/A"></div>
+                        <div class="col-6 mb-3"><label class="form-label text-muted small fw-bold mb-1">Fecha Nacimiento</label><input type="date" name="fecha_nacimiento" id="form_fecha" class="form-control" required></div>
+                        <div class="col-6 mb-3"><label class="form-label text-muted small fw-bold mb-1">Sección</label><input type="text" name="seccion" id="form_seccion" class="form-control" pattern="^(\d+|N/A)$" oninput="this.value = this.value.toUpperCase();" required placeholder=""></div>
                     </div>
 
                     <div class="section-title"><i class="bi bi-geo-alt me-2"></i>Dirección</div>
                     <div class="row">
-                        <div class="col-8 mb-3"><label class="form-label text-muted small fw-bold mb-1">Calle</label><input type="text" name="calle" class="form-control" required></div>
-                        <div class="col-4 mb-3"><label class="form-label text-muted small fw-bold mb-1">N° Ext</label><input type="text" name="num_ext" class="form-control" required></div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label text-muted small fw-bold mb-1">Calle</label>
+                            <input type="text" name="calle" id="form_calle" class="form-control" required placeholder="">
+                        </div>
+                        <div class="col-3 mb-3">
+                            <label class="form-label text-muted small fw-bold mb-1">N° Ext</label>
+                            <input type="text" name="num_ext" id="form_num_ext" class="form-control" required placeholder="">
+                        </div>
+                        <div class="col-3 mb-3">
+                            <label class="form-label text-muted small fw-bold mb-1">N° Int</label>
+                            <input type="text" name="num_int" id="form_num_int" class="form-control" placeholder="">
+                            <!-- CUADRO DE CHECKBOX NO APLICA -->
+                            <div class="form-check mt-2">
+                                <input class="form-check-input shadow-sm" type="checkbox" id="check_int_na" onchange="toggleNumInt()">
+                                <label class="form-check-label text-muted" style="font-size: 0.75rem; cursor: pointer;" for="check_int_na">No aplica (S/N)</label>
+                            </div>
+                        </div>
                     </div>
                     <div class="row">
-                        <div class="col-4 mb-3"><label class="form-label text-muted small fw-bold mb-1">N° Int</label><input type="text" name="num_int" class="form-control"></div>
-                        <div class="col-4 mb-3"><label class="form-label text-muted small fw-bold mb-1">C.P.</label><input type="text" name="cp" class="form-control" pattern="\d{5}" required></div>
-                        <div class="col-4 mb-3"><label class="form-label text-muted small fw-bold mb-1">Fraccionamiento</label><input type="text" name="fraccionamiento" class="form-control" required></div>
+                        <div class="col-4 mb-3">
+                            <label class="form-label text-muted small fw-bold mb-1">C.P.</label>
+                            <input type="text" name="cp" id="form_cp" class="form-control" pattern="\d{5}" required>
+                        </div>
+                        <div class="col-8 mb-3">
+                            <label class="form-label text-muted small fw-bold mb-1">Fraccionamiento / Colonia</label>
+                            
+                            <!-- MENÚ DESPLEGABLE TRADICIONAL -->
+                            <select id="form_fraccionamiento_select" class="form-select" onchange="toggleFraccionamiento()" required>
+                                <option value="" selected disabled>Selecciona una opción...</option>
+                                
+                                <optgroup label="Zona Centro y Turística">
+                                    <option value="Centro">Centro</option>
+                                    <option value="Playacar">Playacar</option>
+                                    <option value="Gonzalo Guerrero">Gonzalo Guerrero</option>
+                                    <option value="Zazil-Há">Zazil-Há</option>
+                                    <option value="Nicte-Há">Nicte-Há</option>
+                                    <option value="Aviación">Aviación</option>
+                                    <option value="Fundadores">Fundadores</option>
+                                    <option value="Nueva Creación">Nueva Creación</option>
+                                </optgroup>
+                                
+                                <optgroup label="Zona Poniente y Norte (Expansión)">
+                                    <option value="Villas del Sol">Villas del Sol</option>
+                                    <option value="Luis Donaldo Colosio">Luis Donaldo Colosio</option>
+                                    <option value="Ejidal">Ejidal / Ejido</option>
+                                    <option value="Bellavista">Bellavista</option>
+                                    <option value="Pescadores">Pescadores</option>
+                                    <option value="Selvanova">Selvanova</option>
+                                    <option value="Misión de las Flores">Misión de las Flores</option>
+                                    <option value="Real Amalfi">Real Amalfi</option>
+                                    <option value="Real Bilbao">Real Bilbao</option>
+                                    <option value="Real Ibiza">Real Ibiza</option>
+                                    <option value="Bali">Bali</option>
+                                    <option value="Marsella">Marsella</option>
+                                    <option value="Villas del Carmen">Villas del Carmen</option>
+                                    <option value="Palmas">Palmas</option>
+                                    <option value="Los Olivos">Los Olivos</option>
+                                    <option value="Misión del Carmen">Misión del Carmen</option>
+                                    <option value="Misión Villamar II">Misión Villamar II</option>
+                                    <option value="Villas Miramar">Villas Miramar</option>
+                                    <option value="Forjadores">Forjadores</option>
+                                    <option value="La Joya">Fracc. La Joya</option>
+                                    <option value="Tigrillo">Fracc. Tigrillo</option>
+                                    <option value="Selvamar">Selvamar</option>
+                                </optgroup>
+                                
+                                <optgroup label="Zona Sur y Poniente Extremo">
+                                    <option value="Bosque Real">Bosque Real</option>
+                                    <option value="Cristo Rey">Cristo Rey</option>
+                                    <option value="El Pedregal">El Pedregal</option>
+                                    <option value="El Petén">El Petén</option>
+                                    <option value="In House">In House</option>
+                                    <option value="Tumbenchilan">Tumbenchilan</option>
+                                    <option value="Mundo Hábitat">Mundo Hábitat</option>
+                                    <option value="Natura">Natura</option>
+                                    <option value="Santa Fe del Carmen">Santa Fe del Carmen</option>
+                                    <option value="Paseos de Xcacel">Paseos de Xcacel</option>
+                                    <option value="Lunamar">Lunamar</option>
+                                    <option value="Zendala Residencial">Zendala Residencial</option>
+                                </optgroup>
+                                
+                                <optgroup label="Zona Norte (Mayakoba y Alrededores)">
+                                    <option value="Jardines Mayakoba">Jardines Mayakoba</option>
+                                    <option value="Sendero Mayakoba">Sendero Mayakoba</option>
+                                    <option value="Ciudad Mayakoba">Ciudad Mayakoba</option>
+                                    <option value="Balamtun">Balamtun</option>
+                                    <option value="Brisas">Brisas</option>
+                                    <option value="Playa Magna">Playa Magna</option>
+                                    <option value="Playa Azul Residencial">Playa Azul Residencial</option>
+                                    <option value="Villamar Riviera">Villamar Riviera</option>
+                                    <option value="La Guadalupana">La Guadalupana</option>
+                                </optgroup>
+
+                                <option value="OTRO" class="fw-bold text-primary">➕ OTRA COLONIA (Escribir...)</option>
+                            </select>
+
+                            <!-- ESTE CUADRO SOLO APARECE SI ELIGEN "OTRO" O SI LA IA ENCUENTRA UNA NUEVA -->
+                            <input type="text" name="fraccionamiento" id="form_fraccionamiento" class="form-control mt-2 shadow-sm border-primary" style="display: none;" placeholder="Escribe la nueva colonia...">
+                        </div>
                     </div>
 
                     <div class="section-title"><i class="bi bi-telephone me-2"></i>Contacto y Asignación</div>
@@ -94,67 +195,136 @@
                         <div class="col-6 mb-3"><label class="form-label text-muted small fw-bold mb-1">Folio Tarjeta</label><input type="text" name="folio_tarjeta" class="form-control text-guinda fw-bold" style="background-color:#fff3f5; border-color:#ffccd5;" required></div>
                     </div>
 
-                    <div class="section-title"><i class="bi bi-camera me-2"></i>Documentación (Opcional)</div>
+                    <div class="section-title"><i class="bi bi-camera me-2"></i>Fotografías del Expediente</div>
                     <div class="row mb-4 text-center">
                         <div class="col-6">
                             <div class="preview-box" onclick="abrirCamara('frente')">
-                                <img id="preview_frente"><div id="text_frente" class="text-muted"><i class="bi bi-camera fs-3 d-block mb-1"></i><small>INE Frente</small></div>
+                                <img id="preview_frente"><div id="text_frente" class="text-muted"><i class="bi bi-camera fs-3 d-block mb-1"></i><small>Tomar Frente</small></div>
                             </div>
                             <input type="hidden" name="foto_frente" id="input_frente">
                         </div>
                         <div class="col-6">
                             <div class="preview-box" onclick="abrirCamara('reverso')">
-                                <img id="preview_reverso"><div id="text_reverso" class="text-muted"><i class="bi bi-camera fs-3 d-block mb-1"></i><small>INE Reverso</small></div>
+                                <img id="preview_reverso"><div id="text_reverso" class="text-muted"><i class="bi bi-camera fs-3 d-block mb-1"></i><small>Tomar Reverso</small></div>
                             </div>
                             <input type="hidden" name="foto_reverso" id="input_reverso">
                         </div>
                     </div>
                     <button type="submit" class="btn btn-guinda w-100 py-3 fs-5 mt-2"><i class="bi bi-cloud-arrow-up me-2"></i>Guardar Registro</button>
                 </form>
-                <!-- AQUÍ SE CIERRA EL FORMULARIO CORRECTAMENTE -->
                 
             </div>
         </div>
     </div>
 
-    <!-- Modal de Cámara con botón de Linterna -->
+    <!-- Modal Compartido -->
     <div id="camara_modal">
-        <h4 class="text-white fw-bold mb-4" id="camara_titulo">Escáner de Documento</h4>
-        <video id="video" autoplay playsinline></video>
+        <h4 class="text-white fw-bold mb-2" id="camara_titulo">Escáner</h4>
+        <p class="text-white-50 small mb-3 text-center px-4" id="camara_instruccion"></p>
+        
+        <div class="video-container">
+            <video id="video" autoplay playsinline></video>
+            <div id="scanner_overlay">
+                <div class="scanning-text"><i class="bi bi-person-vcard d-block fs-1 mb-2"></i>Encuadra la INE<br>aquí adentro</div>
+            </div>
+        </div>
+
         <canvas id="canvas" style="display: none;"></canvas>
         <div class="mt-4 d-flex gap-2">
-            <!-- Botón de linterna (Oculto por defecto hasta detectar el hardware) -->
             <button type="button" class="btn btn-warning rounded-pill px-3 fw-bold shadow-sm" id="btnLinterna" onclick="toggleLinterna()" style="display: none;"><i class="bi bi-lightbulb-fill"></i></button>
             <button type="button" class="btn btn-light rounded-pill px-4 fw-bold shadow-sm" onclick="cerrarCamara()">Cancelar</button>
-            <button type="button" class="btn btn-guinda rounded-pill px-4 fw-bold shadow-sm" onclick="capturarFoto()"><i class="bi bi-camera-fill me-2"></i>Capturar</button>
+            <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm" id="btnProcesarIA" onclick="procesarCapturaLimpia()" style="display: none;"><i class="bi bi-upc-scan me-2"></i>Leer Datos</button>
+            <button type="button" class="btn btn-guinda rounded-pill px-4 fw-bold shadow-sm" id="btnCapturarFoto" onclick="capturarFotoManual()"><i class="bi bi-camera-fill me-2"></i>Tomar Foto</button>
         </div>
     </div>
 
     <script>
-        let streamActual = null, trackActual = null, objetivoActual = '', linternaEncendida = false;
+        // --- FUNCIONES DE LOS NUEVOS BOTONES INTERACTIVOS ---
         
+        // Bloquea el Nº Int y pone S/N si se marca la casilla
+        function toggleNumInt() {
+            const input = document.getElementById('form_num_int');
+            const check = document.getElementById('check_int_na');
+            if (check.checked) {
+                input.value = 'S/N';
+                input.readOnly = true;
+                input.style.backgroundColor = '#e9ecef';
+            } else {
+                if(input.value === 'S/N') input.value = '';
+                input.readOnly = false;
+                input.style.backgroundColor = '#f8f9fa';
+            }
+        }
+
+        // Muestra el cuadro para escribir si seleccionan "OTRA COLONIA"
+        function toggleFraccionamiento() {
+            const select = document.getElementById('form_fraccionamiento_select');
+            const input = document.getElementById('form_fraccionamiento');
+            if (select.value === 'OTRO') {
+                input.style.display = 'block';
+                input.value = '';
+                input.required = true;
+                input.focus();
+            } else {
+                input.style.display = 'none';
+                input.value = select.value;
+                input.required = false;
+            }
+        }
+
+        // --- SISTEMA DE CÁMARA E IA ---
+        
+        let streamActual = null, trackActual = null, objetivoActual = '', linternaEncendida = false;
+        let workerIA = null; 
+        
+        async function prepararMotorIA() {
+            if (!workerIA) {
+                Swal.fire({ title: 'Cargando Motor...', text: 'Preparando inteligencia artificial (solo la primera vez).', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); }});
+                workerIA = await Tesseract.createWorker('spa');
+                Swal.close();
+            }
+        }
+
+        async function abrirEscaner() {
+            await prepararMotorIA();
+            objetivoActual = 'escaner';
+            document.getElementById('camara_titulo').innerText = 'Escáner de Datos';
+            document.getElementById('camara_instruccion').innerText = 'Sostén el teléfono firme. Cuando la INE se vea perfectamente nítida, presiona Leer Datos.';
+            document.getElementById('btnProcesarIA').style.display = 'block'; 
+            document.getElementById('btnCapturarFoto').style.display = 'none'; 
+            document.getElementById('scanner_overlay').style.display = 'block'; 
+            await iniciarVideo();
+        }
+
         async function abrirCamara(objetivo) {
             objetivoActual = objetivo; 
-            document.getElementById('camara_titulo').innerText = objetivo === 'frente' ? 'Tomar INE Frente' : 'Tomar INE Reverso'; 
+            document.getElementById('camara_titulo').innerText = objetivo === 'frente' ? 'Fotografía INE Frente' : 'Fotografía INE Reverso'; 
+            document.getElementById('camara_instruccion').innerText = '';
+            document.getElementById('btnProcesarIA').style.display = 'none'; 
+            document.getElementById('btnCapturarFoto').style.display = 'block'; 
+            document.getElementById('scanner_overlay').style.display = 'none'; 
+            await iniciarVideo();
+        }
+
+        async function iniciarVideo() {
             document.getElementById('camara_modal').style.display = 'flex';
             document.getElementById('btnLinterna').style.display = 'none';
             linternaEncendida = false;
 
             try { 
-                streamActual = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); 
-                document.getElementById('video').srcObject = streamActual; 
+                streamActual = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } }); 
+                const video = document.getElementById('video');
+                video.srcObject = streamActual; 
+                video.play();
                 
-                // Configurar linterna si el celular lo soporta
                 trackActual = streamActual.getVideoTracks()[0];
                 setTimeout(() => {
-                    const capabilities = trackActual.getCapabilities();
-                    if (capabilities.torch) {
+                    if (trackActual.getCapabilities().torch) {
                         document.getElementById('btnLinterna').style.display = 'block';
                     }
-                }, 500); // Pequeña pausa para dejar que el lente de la cámara cargue sus propiedades
-                
+                }, 500); 
             } catch (err) { 
-                Swal.fire('Error', 'No se detectó cámara o no diste los permisos', 'error'); 
+                Swal.fire('Error', 'No se detectó cámara o no diste permisos', 'error'); 
                 cerrarCamara(); 
             }
         }
@@ -165,36 +335,25 @@
                 try {
                     await trackActual.applyConstraints({ advanced: [{ torch: linternaEncendida }] });
                     const btn = document.getElementById('btnLinterna');
-                    if(linternaEncendida) {
-                        btn.classList.replace('btn-warning', 'btn-light');
-                        btn.innerHTML = '<i class="bi bi-lightbulb-off-fill"></i>';
-                    } else {
-                        btn.classList.replace('btn-light', 'btn-warning');
-                        btn.innerHTML = '<i class="bi bi-lightbulb-fill"></i>';
-                    }
-                } catch (error) {
-                    console.error("Error activando la linterna:", error);
-                }
+                    btn.classList.toggle('btn-warning');
+                    btn.classList.toggle('btn-light');
+                } catch (error) { console.error(error); }
             }
         }
         
         function cerrarCamara() { 
             if (streamActual) { 
-                // Apagar linterna al cerrar para no gastar batería
-                if (trackActual && linternaEncendida) {
-                    trackActual.applyConstraints({ advanced: [{ torch: false }] }).catch(e => console.log(e));
-                }
+                if (trackActual && linternaEncendida) trackActual.applyConstraints({ advanced: [{ torch: false }] }).catch(e => console.log(e));
                 streamActual.getTracks().forEach(t => t.stop()); 
-                streamActual = null; 
-                trackActual = null;
+                streamActual = null; trackActual = null;
             } 
             document.getElementById('camara_modal').style.display = 'none'; 
         }
         
-        function capturarFoto() {
+        function capturarFotoManual() {
             const video = document.getElementById('video'), canvas = document.getElementById('canvas'); 
             canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0); 
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height); 
             const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
             
             document.getElementById(`input_${objetivoActual}`).value = dataUrl; 
@@ -204,54 +363,168 @@
             cerrarCamara();
         }
 
+        async function procesarCapturaLimpia() {
+            const video = document.getElementById('video');
+            video.pause(); 
+            
+            Swal.fire({ title: 'Analizando...', text: 'Extrayendo texto de la credencial', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); }});
+
+            const cropX = video.videoWidth * 0.05; 
+            const cropY = video.videoHeight * 0.05; 
+            const cropW = video.videoWidth * 0.90; 
+            const cropH = video.videoHeight * 0.90; 
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = cropW; tempCanvas.height = cropH;
+            const ctx = tempCanvas.getContext('2d');
+            
+            ctx.filter = 'contrast(200%) grayscale(100%) brightness(120%)';
+            ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH); 
+            
+            const dataUrl = tempCanvas.toDataURL('image/jpeg', 1.0);
+
+            try {
+                const result = await workerIA.recognize(dataUrl);
+                const textoPlano = result.data.text.toUpperCase();
+                
+                let camposEncontrados = 0;
+                const lineas = textoPlano.split('\n').map(l => l.trim()).filter(l => l.length > 3);
+                
+                let flagNombre = false;
+                let nombreCompleto = [];
+                for (let i = 0; i < lineas.length; i++) {
+                    if (lineas[i].includes("NOMBRE")) { flagNombre = true; continue; }
+                    if (lineas[i].includes("DOMICILIO") || lineas[i].includes("EDAD")) { flagNombre = false; }
+                    if (flagNombre && nombreCompleto.length < 3) {
+                        let textoLimpio = lineas[i].replace(/[^A-ZÁÉÍÓÚÑ\s]/g, '').trim();
+                        if (textoLimpio.length > 2) nombreCompleto.push(textoLimpio);
+                    }
+                }
+                if (nombreCompleto.length > 0) {
+                    document.getElementById('form_nombre').value = nombreCompleto.join(' ');
+                    camposEncontrados++;
+                }
+
+                let matchSeccion = textoPlano.match(/SECCI[OÓ0DMN][\s:.-]*(\d{4})/i) || textoPlano.match(/SECC[\s:.-]*(\d{4})/i);
+                if (matchSeccion) { document.getElementById('form_seccion').value = matchSeccion[1]; camposEncontrados++; }
+
+                let matchCP = textoPlano.match(/C\.?[PFR]\.?[\s:.-]*(\d{5})/i) || textoPlano.match(/\b(\d{5})\b/);
+                if (matchCP) { document.getElementById('form_cp').value = matchCP[1]; camposEncontrados++; }
+
+                let matchFecha = textoPlano.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+                let curpMatch = textoPlano.match(/[A-Z]{4}(\d{6})[HM][A-Z]{5}[A-Z0-9]\d/);
+                if (curpMatch) {
+                    let fechaCurp = curpMatch[1]; 
+                    let yy = parseInt(fechaCurp.substring(0, 2)), mm = fechaCurp.substring(2, 4), dd = fechaCurp.substring(4, 6);
+                    let year = (yy < 30) ? 2000 + yy : 1900 + yy; 
+                    document.getElementById('form_fecha').value = `${year}-${mm}-${dd}`;
+                    camposEncontrados++;
+                } else if (matchFecha) {
+                    document.getElementById('form_fecha').value = `${matchFecha[3]}-${matchFecha[2]}-${matchFecha[1]}`;
+                    camposEncontrados++;
+                }
+
+                let idxDom = lineas.findIndex(l => l.includes("DOMICILIO") || l.includes("DOMICIL"));
+                if (idxDom !== -1) {
+                    let dom1 = lineas[idxDom + 1] || ""; 
+                    let dom2 = lineas[idxDom + 2] || ""; 
+                    
+                    let mz = dom1.match(/(?:MZA|MZ|M)[\s.-]*(\d+[A-Z]?)/i);
+                    let lt = dom1.match(/(?:LOTE|LT|L)[\s.-]*(\d+[A-Z]?)/i);
+                    let numNormal = dom1.match(/(?:NUM|NO|EXT)[\s.-]*(\d+)/i) || dom1.match(/\b(\d{1,4})\b$/);
+
+                    // Numero Exterior
+                    if (mz) {
+                        document.getElementById('form_num_ext').value = 'M' + mz[1];
+                        dom1 = dom1.replace(mz[0], '');
+                    } else if (numNormal) {
+                        document.getElementById('form_num_ext').value = numNormal[1] || numNormal[0];
+                        dom1 = dom1.replace(numNormal[0], '');
+                    } else {
+                        document.getElementById('form_num_ext').value = "S/N";
+                    }
+
+                    // Numero Interior e Integración con Checkbox "No Aplica"
+                    if (lt) {
+                        document.getElementById('form_num_int').value = 'L' + lt[1];
+                        document.getElementById('check_int_na').checked = false;
+                        toggleNumInt(); // Refresca visualmente a desbloqueado
+                        dom1 = dom1.replace(lt[0], '');
+                    } else {
+                        // Si la IA no encontró lote ni interior, asume S/N y lo bloquea
+                        document.getElementById('check_int_na').checked = true;
+                        toggleNumInt(); 
+                    }
+
+                    document.getElementById('form_calle').value = dom1.replace(/^C\s+/i, '').replace(/[\/\.-]+$/, '').replace(/[^A-Z0-9\s]/g, '').trim();
+                    camposEncontrados += 2;
+
+                    // Integración de Fraccionamiento Inteligente
+                    let frac = dom2.replace(/^(COL|FRACC|SM|MZA|R|SUPERMANZANA)\.?\s*/i, '').replace(/\b\d{5}\b/, '').replace(/[^A-Z0-9\s.-]/g, '').trim();
+                    if (frac.length > 2) {
+                        let selectElement = document.getElementById('form_fraccionamiento_select');
+                        let inputElement = document.getElementById('form_fraccionamiento');
+                        let options = Array.from(selectElement.options);
+                        
+                        // Busca si el nombre que extrajo la IA existe en la lista desplegable
+                        let match = options.find(opt => opt.value.toUpperCase() === frac.toUpperCase() || opt.value.toUpperCase().includes(frac.toUpperCase()));
+                        
+                        if (match && match.value !== 'OTRO' && match.value !== '') {
+                            selectElement.value = match.value;
+                            inputElement.value = match.value;
+                            inputElement.style.display = 'none';
+                        } else {
+                            // Si es una colonia nueva o rara, selecciona OTRO y la pone en la caja de texto
+                            selectElement.value = 'OTRO';
+                            inputElement.style.display = 'block';
+                            inputElement.value = frac;
+                        }
+                        camposEncontrados++;
+                    }
+                }
+
+                if (camposEncontrados > 0) {
+                    cerrarCamara();
+                    Swal.fire({ title: '¡Datos Extraídos!', text: `Se rellenaron ${camposEncontrados} campos. Por favor revisa que no haya errores de lectura.`, icon: 'success', customClass: { popup: 'rounded-4' }});
+                } else {
+                    video.play();
+                    Swal.fire('Lectura Fallida', 'No se detectó texto claro. Asegúrate de enfocar bien y evitar el reflejo de la luz en la credencial.', 'warning');
+                }
+
+            } catch (error) { 
+                video.play();
+                Swal.fire('Error', 'Hubo un fallo al procesar la imagen.', 'error'); 
+            }
+        }
+
         document.getElementById('formularioRegistro').addEventListener('submit', async function(e) {
             e.preventDefault(); 
             
+            // Verificación extra antes de mandar
+            const select = document.getElementById('form_fraccionamiento_select');
+            const input = document.getElementById('form_fraccionamiento');
+            if(select.value !== 'OTRO') { input.value = select.value; }
+
             const btn = this.querySelector('button[type="submit"]');
             const btnOriginalText = btn.innerHTML;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Guardando...';
             btn.disabled = true;
-            
             try {
                 const response = await fetch('/agregar', { method: 'POST', body: new FormData(this) }); 
-                
-                if (!response.ok) {
-                    Swal.fire('Datos Inválidos', 'El sistema rechazó la información. Verifica los datos.', 'error');
-                    btn.innerHTML = btnOriginalText;
-                    btn.disabled = false;
-                    return;
-                }
-                
+                if (!response.ok) { Swal.fire('Error', 'Verifica los datos.', 'error'); btn.innerHTML = btnOriginalText; btn.disabled = false; return; }
                 const data = await response.json();
-                
                 if (data.status === 'success') { 
-                    Swal.fire({
-                        title: '¡Registro Exitoso!', 
-                        text: 'Beneficiario guardado correctamente.', 
-                        icon: 'success', 
-                        confirmButtonColor: '#691C32', 
-                        timer: 2000, 
-                        showConfirmButton: false,
-                        customClass: { popup: 'rounded-4' }
-                    }); 
-                    
+                    Swal.fire({ title: '¡Guardado!', icon: 'success', timer: 1500, showConfirmButton: false}); 
                     this.reset(); 
-                    ['frente', 'reverso'].forEach(o => { 
-                        document.getElementById(`input_${o}`).value = ""; 
-                        document.getElementById(`preview_${o}`).style.display = "none"; 
-                        document.getElementById(`text_${o}`).style.display = "block"; 
-                    }); 
+                    // Limpieza visual de los nuevos botones al guardar
+                    document.getElementById('form_fraccionamiento').style.display = 'none';
+                    document.getElementById('check_int_na').checked = false;
+                    toggleNumInt();
+
+                    ['frente', 'reverso'].forEach(o => { document.getElementById(`input_${o}`).value = ""; document.getElementById(`preview_${o}`).style.display = "none"; document.getElementById(`text_${o}`).style.display = "block"; }); 
                     window.scrollTo({ top: 0, behavior: 'smooth' });
-                    
-                } else {
-                    Swal.fire('Error', data.message || 'Hubo un problema al guardar.', 'error');
-                }
-            } catch(error) {
-                Swal.fire('Falla de Conexión', 'Se perdió la conexión con el servidor. Intenta de nuevo.', 'error');
-            } finally {
-                btn.innerHTML = btnOriginalText;
-                btn.disabled = false;
-            }
+                } else { Swal.fire('Error', data.message, 'error'); }
+            } catch(error) { Swal.fire('Falla', 'Sin conexión.', 'error'); } finally { btn.innerHTML = btnOriginalText; btn.disabled = false; }
         });
     </script>
 </body>
