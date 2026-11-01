@@ -23,3 +23,5 @@ uvicorn==0.52.4
 psycopg2-binary
 itsdangerous==2.2.0
 python-dotenv
+openpyxl
+Pillow

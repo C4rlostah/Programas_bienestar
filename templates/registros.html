@@ -20,8 +20,10 @@
         .table-custom tbody td { border: none; padding: 1rem; vertical-align: middle; }
         .table-custom tbody td:first-child { border-radius: 0.5rem 0 0 0.5rem; }
         .table-custom tbody td:last-child { border-radius: 0 0.5rem 0.5rem 0; }
-        .foto-tabla { width: 45px; height: 35px; object-fit: cover; border-radius: 6px; border: 1px solid #e2e8f0; transition: 0.3s; }
-        .foto-tabla:hover { transform: scale(2); z-index: 10; position: relative; box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+        
+        .foto-tabla { width: 45px; height: 35px; object-fit: cover; border-radius: 6px; border: 1px solid #e2e8f0; transition: 0.3s; cursor: zoom-in; }
+        .foto-tabla:hover { transform: scale(1.5); z-index: 10; position: relative; box-shadow: 0 10px 20px rgba(0,0,0,0.2); border-color: #691C32; }
+        
         .badge-folio { background-color: #fff3f5; color: #691C32; border: 1px solid #ffccd5; padding: 0.4rem 0.8rem; border-radius: 2rem; font-weight: 700; }
         .btn-guinda { background: linear-gradient(135deg, #691C32, #8d2643); color: white; border: none; font-weight: 600;}
     </style>
@@ -39,9 +41,27 @@
                     <li class="nav-item">
                         <a class="btn btn-light text-guinda fw-bold rounded-pill px-4 shadow-sm" href="/"><i class="bi bi-plus-lg me-2"></i>Nuevo Captura</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="btn btn-success fw-bold rounded-pill px-4 shadow-sm" href="/descargar_excel"><i class="bi bi-file-earmark-excel-fill me-2"></i>Excel</a>
+                    
+                    <!-- BOTÓN EXCEL DESPLEGABLE CON OPCIONES -->
+                    <li class="nav-item dropdown">
+                        <a class="btn btn-success fw-bold rounded-pill px-4 shadow-sm dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-file-earmark-excel-fill me-2"></i>Excel
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 mt-2 p-2">
+                            <li><h6 class="dropdown-header text-muted fw-bold">Opciones de Exportación</h6></li>
+                            <li>
+                                <a class="dropdown-item py-2 fw-semibold text-dark rounded-3" href="/descargar_excel?con_imagenes=false">
+                                    <i class="bi bi-file-text text-success me-2 fs-5 align-middle"></i>Solo Datos (Rápido)
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item py-2 fw-semibold text-dark rounded-3" href="/descargar_excel?con_imagenes=true">
+                                    <i class="bi bi-images text-primary me-2 fs-5 align-middle"></i>Con Fotos (Más pesado)
+                                </a>
+                            </li>
+                        </ul>
                     </li>
+
                     {% if user.rol == 'admin' %}
                     <li class="nav-item border-start border-light ps-3 ms-2"><a href="/usuarios" class="btn btn-outline-light rounded-pill px-4 fw-bold btn-sm py-2"><i class="bi bi-people-fill me-2"></i>Personal</a></li>
                     <li class="nav-item"><a href="/auditoria" class="btn btn-outline-light rounded-pill px-4 fw-bold btn-sm py-2"><i class="bi bi-list-check me-2"></i>Auditoría</a></li>
@@ -80,8 +100,12 @@
                         <td class="fw-bold text-secondary">{{ reg.telefono }}</td>
                         <td>
                             <div class="d-flex gap-2 justify-content-center">
-                                {% if reg.foto_frente %}<a href="{{ reg.foto_frente }}" target="_blank"><img src="{{ reg.foto_frente }}" class="foto-tabla" alt="Frente"></a>{% endif %}
-                                {% if reg.foto_reverso %}<a href="{{ reg.foto_reverso }}" target="_blank"><img src="{{ reg.foto_reverso }}" class="foto-tabla" alt="Reverso"></a>{% endif %}
+                                {% if reg.foto_frente %}
+                                    <img src="{{ reg.foto_frente }}" class="foto-tabla shadow-sm" alt="Frente" title="Ver Frente" onclick="verFoto('{{ reg.foto_frente }}')">
+                                {% endif %}
+                                {% if reg.foto_reverso %}
+                                    <img src="{{ reg.foto_reverso }}" class="foto-tabla shadow-sm" alt="Reverso" title="Ver Reverso" onclick="verFoto('{{ reg.foto_reverso }}')">
+                                {% endif %}
                             </div>
                         </td>
                         <td class="text-end pe-4">
@@ -95,6 +119,21 @@
         </div>
     </div>
 
+    <!-- MODAL VISOR DE FOTOGRAFÍAS -->
+    <div class="modal fade" id="modalVisorFoto" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content bg-transparent border-0 shadow-none">
+                <div class="modal-header border-0 justify-content-end pb-0">
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar" style="background-color: rgba(255,255,255,0.9); padding: 0.8rem; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.3);"></button>
+                </div>
+                <div class="modal-body text-center p-0 mt-2">
+                    <iframe id="visorPdfContenedor" src="" style="width: 100%; height: 75vh; border: none; border-radius: 1rem; display: none; background: white;" class="shadow-lg"></iframe>
+                    <img id="visorImagenGrande" src="" class="img-fluid shadow-lg rounded-4" style="max-height: 80vh; border: 4px solid white; display: none;">
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Editar -->
     <div class="modal fade" id="modalEditar" tabindex="-1">
         <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -104,7 +143,7 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4 bg-light">
-                    <form id="formEditar" autocomplete="off">
+                    <form id="formEditar" autocomplete="off" enctype="multipart/form-data">
                         <input type="hidden" id="edit_id" name="reg_id">
                         <div class="row g-3 mb-3">
                             <div class="col-md-8"><label class="form-label small fw-bold text-muted">Nombre</label><input type="text" id="edit_nombre" name="nombre" class="form-control rounded-3" required></div>
@@ -119,10 +158,25 @@
                             <div class="col-md-3"><label class="form-label small fw-bold text-muted">N° Ext</label><input type="text" id="edit_ext" name="num_ext" class="form-control rounded-3" required></div>
                             <div class="col-md-3"><label class="form-label small fw-bold text-muted">N° Int</label><input type="text" id="edit_int" name="num_int" class="form-control rounded-3"></div>
                         </div>
-                        <div class="row g-3">
+                        <div class="row g-3 mb-3">
                             <div class="col-md-4"><label class="form-label small fw-bold text-muted">Fraccionamiento</label><input type="text" id="edit_fracc" name="fraccionamiento" class="form-control rounded-3" required></div>
                             <div class="col-md-4"><label class="form-label small fw-bold text-muted">C.P.</label><input type="text" id="edit_cp" name="cp" class="form-control rounded-3" required></div>
                             <div class="col-md-4"><label class="form-label small fw-bold text-muted">Teléfono</label><input type="text" id="edit_telefono" name="telefono" class="form-control rounded-3" required></div>
+                        </div>
+                        
+                        <div class="row g-3 mt-1 pt-3 border-top border-secondary-subtle">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold text-guinda"><i class="bi bi-file-earmark-arrow-up me-1"></i>Actualizar Frente</label>
+                                <input type="file" id="file_edit_frente" class="form-control form-control-sm rounded-3 border-primary shadow-sm" accept="image/*,application/pdf" onchange="convertirABase64(this, 'edit_hidden_frente')">
+                                <input type="hidden" name="foto_frente" id="edit_hidden_frente">
+                                <small class="text-muted d-block mt-1" style="font-size: 0.7rem;">Dejar vacío si no deseas cambiar el actual.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold text-guinda"><i class="bi bi-file-earmark-arrow-up me-1"></i>Actualizar Reverso</label>
+                                <input type="file" id="file_edit_reverso" class="form-control form-control-sm rounded-3 border-primary shadow-sm" accept="image/*,application/pdf" onchange="convertirABase64(this, 'edit_hidden_reverso')">
+                                <input type="hidden" name="foto_reverso" id="edit_hidden_reverso">
+                                <small class="text-muted d-block mt-1" style="font-size: 0.7rem;">Dejar vacío si no deseas cambiar el actual.</small>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -135,6 +189,34 @@
     </div>
 
     <script>
+        function verFoto(base64Data) {
+            const img = document.getElementById('visorImagenGrande');
+            const pdf = document.getElementById('visorPdfContenedor');
+            if (base64Data.startsWith('data:application/pdf')) {
+                img.style.display = 'none';
+                pdf.src = base64Data;
+                pdf.style.display = 'block';
+            } else {
+                pdf.style.display = 'none';
+                img.src = base64Data;
+                img.style.display = 'inline-block';
+            }
+            new bootstrap.Modal(document.getElementById('modalVisorFoto')).show();
+        }
+
+        function convertirABase64(inputElement, hiddenId) {
+            const file = inputElement.files[0];
+            if (!file) {
+                document.getElementById(hiddenId).value = "";
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById(hiddenId).value = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
         async function eliminarRegistro(id) {
             const { isConfirmed } = await Swal.fire({ title: '¿Eliminar Registro?', text: "Esta acción quedará guardada en la auditoría.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc3545', confirmButtonText: 'Eliminar', customClass: { popup: 'rounded-4' } });
             if (isConfirmed) {
@@ -143,15 +225,48 @@
                 if (res.status === 'success') { Swal.fire({title: 'Eliminado', icon: 'success'}).then(() => location.reload()); } else { Swal.fire('Error', res.message, 'error'); }
             }
         }
+        
         function abrirModalEditar(id, n, f, s, c, ne, ni, cp, fr, t, fol) {
-            document.getElementById('edit_id').value = id; document.getElementById('edit_nombre').value = n; document.getElementById('edit_fecha').value = f; document.getElementById('edit_seccion').value = s; document.getElementById('edit_calle').value = c; document.getElementById('edit_ext').value = ne; document.getElementById('edit_int').value = ni; document.getElementById('edit_cp').value = cp; document.getElementById('edit_fracc').value = fr; document.getElementById('edit_telefono').value = t; document.getElementById('edit_folio').value = fol;
+            document.getElementById('edit_id').value = id; 
+            document.getElementById('edit_nombre').value = n; 
+            document.getElementById('edit_fecha').value = f; 
+            document.getElementById('edit_seccion').value = s; 
+            document.getElementById('edit_calle').value = c; 
+            document.getElementById('edit_ext').value = ne; 
+            document.getElementById('edit_int').value = ni; 
+            document.getElementById('edit_cp').value = cp; 
+            document.getElementById('edit_fracc').value = fr; 
+            document.getElementById('edit_telefono').value = t; 
+            document.getElementById('edit_folio').value = fol;
+            
+            document.getElementById('file_edit_frente').value = "";
+            document.getElementById('edit_hidden_frente').value = "";
+            document.getElementById('file_edit_reverso').value = "";
+            document.getElementById('edit_hidden_reverso').value = "";
+
             new bootstrap.Modal(document.getElementById('modalEditar')).show();
         }
+
         async function guardarEdicion() {
             const form = document.getElementById('formEditar'); if(!form.checkValidity()){ form.reportValidity(); return; }
-            const response = await fetch(`/editar/${new FormData(form).get('reg_id')}`, { method: 'POST', body: new FormData(form) });
-            const res = await response.json();
-            if (res.status === 'success') { Swal.fire({title: 'Actualizado', icon: 'success'}).then(() => location.reload()); } else { Swal.fire('Error', res.message, 'error'); }
+            const btn = document.querySelector('#modalEditar .btn-guinda');
+            const btnOriginal = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Guardando...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`/editar/${new FormData(form).get('reg_id')}`, { method: 'POST', body: new FormData(form) });
+                const res = await response.json();
+                if (res.status === 'success') { 
+                    Swal.fire({title: 'Actualizado', icon: 'success', showConfirmButton: false, timer: 1500}).then(() => location.reload()); 
+                } else { 
+                    Swal.fire('Error', res.message, 'error'); 
+                    btn.innerHTML = btnOriginal; btn.disabled = false;
+                }
+            } catch (error) {
+                Swal.fire('Error de Conexión', 'Hubo un problema al enviar los datos.', 'error');
+                btn.innerHTML = btnOriginal; btn.disabled = false;
+            }
         }
     </script>
 </body>
