@@ -18,6 +18,10 @@ from openpyxl.utils import get_column_letter
 from openpyxl.drawing.image import Image as ExcelImage
 from PIL import Image as PILImage
 
+# --- NUEVA LIBRERÍA DE AWS ---
+import boto3
+from botocore.exceptions import ClientError
+
 load_dotenv()
 
 app = FastAPI(title="Programas Bienestar")
@@ -25,6 +29,63 @@ app.add_middleware(SessionMiddleware, secret_key="bienestar_super_secreto_2026")
 templates = Jinja2Templates(directory="templates")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+
+# --- CONFIGURACIÓN DE AWS S3 ---
+S3_BUCKET = os.getenv("AWS_BUCKET_NAME")
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    region_name=os.getenv("AWS_REGION", "us-east-1")
+)
+
+def subir_a_s3(base64_str, prefijo="expediente"):
+    """Recibe un Base64, lo decodifica, lo sube a S3 y devuelve la ruta del archivo."""
+    if not base64_str:
+        return ""
+    # Si no empieza con "data:", significa que ya es una ruta de S3 (para cuando editan sin cambiar foto)
+    if not base64_str.startswith("data:"):
+        return base64_str
+        
+    try:
+        header, encoded = base64_str.split(";", 1)
+        mime_type = header.split(":")[1]
+        encoded_data = encoded.split(",", 1)[1]
+        
+        ext = ".pdf" if "pdf" in mime_type else ".jpg"
+        file_name = f"ines/{prefijo}_{uuid.uuid4().hex}{ext}"
+        file_bytes = base64.b64decode(encoded_data)
+        
+        s3_client.put_object(
+            Bucket=S3_BUCKET,
+            Key=file_name,
+            Body=file_bytes,
+            ContentType=mime_type
+        )
+        return file_name # Solo guardamos la llave (ej. ines/exp_123.jpg) en la BD
+    except Exception as e:
+        print(f"Error subiendo a S3: {e}")
+        return ""
+
+def generar_url_firmada(ruta_db):
+    """Convierte la ruta guardada en la BD en un enlace temporal seguro de S3."""
+    if not ruta_db:
+        return ""
+    # Si es un Base64 antiguo heredado de la BD vieja, lo devolvemos tal cual para no romper registros pasados
+    if ruta_db.startswith("data:"):
+        return ruta_db
+        
+    try:
+        # Genera un link seguro que caduca en 1 hora (3600 segundos)
+        url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': S3_BUCKET, 'Key': ruta_db},
+            ExpiresIn=3600
+        )
+        return url
+    except Exception as e:
+        print(f"Error generando URL firmada: {e}")
+        return ""
 
 def hash_password(password: str):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -40,9 +101,14 @@ def init_db():
         CREATE TABLE IF NOT EXISTS beneficiarios (
             id SERIAL PRIMARY KEY, nombre TEXT, fecha_nacimiento TEXT, seccion TEXT,
             calle TEXT, num_ext TEXT, num_int TEXT, cp TEXT, fraccionamiento TEXT, telefono TEXT,
-            folio_tarjeta TEXT, foto_frente TEXT, foto_reverso TEXT
+            folio_tarjeta TEXT, foto_frente TEXT, foto_reverso TEXT, fecha_registro TEXT
         )
     ''')
+    try:
+        cursor.execute("ALTER TABLE beneficiarios ADD COLUMN fecha_registro TEXT")
+        cursor.execute("UPDATE beneficiarios SET fecha_registro = %s WHERE fecha_registro IS NULL", (datetime.now().strftime("%Y-%m-%d"),))
+    except psycopg2.errors.DuplicateColumn:
+        conn.rollback()
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
@@ -145,35 +211,49 @@ async def ver_registros(request: Request):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     cursor.execute("SELECT * FROM beneficiarios ORDER BY id DESC")
-    registros = cursor.fetchall()
+    registros_db = cursor.fetchall()
     conn.close()
-    return templates.TemplateResponse(request=request, name="registros.html", context={"registros": registros, "user": user})
+
+    # Sustituimos la ruta de la BD por la URL firmada temporal de AWS antes de mandarlo al HTML
+    registros_procesados = []
+    for reg in registros_db:
+        reg_dict = dict(reg)
+        reg_dict['foto_frente'] = generar_url_firmada(reg_dict['foto_frente'])
+        reg_dict['foto_reverso'] = generar_url_firmada(reg_dict['foto_reverso'])
+        registros_procesados.append(reg_dict)
+
+    return templates.TemplateResponse(request=request, name="registros.html", context={"registros": registros_procesados, "user": user})
 
 @app.post("/agregar")
 async def agregar_registro(
-    request: Request, nombre: str = Form(...), fecha_nacimiento: str = Form(...), seccion: str = Form(...), calle: str = Form(...), 
-    num_ext: str = Form(...), num_int: str = Form(""), cp: str = Form(...), fraccionamiento: str = Form(...),
-    telefono: str = Form(...), folio_tarjeta: str = Form(...), foto_frente: str = Form(""), foto_reverso: str = Form("")
+    request: Request, nombre: str = Form(...), fecha_registro: str = Form(...), fecha_nacimiento: str = Form(...), 
+    seccion: str = Form(...), calle: str = Form(...), num_ext: str = Form(...), num_int: str = Form(""), 
+    cp: str = Form(...), fraccionamiento: str = Form(...), telefono: str = Form(...), folio_tarjeta: str = Form(...), 
+    foto_frente: str = Form(""), foto_reverso: str = Form("")
 ):
     user = get_current_user(request)
     if not user: return JSONResponse(content={"status": "error", "message": "Sesión expirada"}, status_code=401)
 
+    # Subimos a S3 y obtenemos solo la llave de ruta (ej. ines/exp_abc123.jpg)
+    s3_frente = subir_a_s3(foto_frente, "frente")
+    s3_reverso = subir_a_s3(foto_reverso, "reverso")
+
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO beneficiarios (nombre, fecha_nacimiento, seccion, calle, num_ext, num_int, cp, fraccionamiento, telefono, folio_tarjeta, foto_frente, foto_reverso) 
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-    ''', (nombre, fecha_nacimiento, seccion, calle, num_ext, num_int, cp, fraccionamiento, telefono, folio_tarjeta, foto_frente, foto_reverso))
+        INSERT INTO beneficiarios (nombre, fecha_registro, fecha_nacimiento, seccion, calle, num_ext, num_int, cp, fraccionamiento, telefono, folio_tarjeta, foto_frente, foto_reverso) 
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+    ''', (nombre, fecha_registro, fecha_nacimiento, seccion, calle, num_ext, num_int, cp, fraccionamiento, telefono, folio_tarjeta, s3_frente, s3_reverso))
     new_id = cursor.fetchone()[0]
     conn.commit()
     conn.close()
     
-    registrar_movimiento(user["username"], "Captura", f"Registró al beneficiario: {nombre} (ID: {new_id})")
+    registrar_movimiento(user["username"], "Captura", f"Registró al beneficiario: {nombre} (ID: {new_id}) el día {fecha_registro}")
     return JSONResponse(content={"status": "success", "message": "Registro guardado correctamente"})
 
 @app.post("/editar/{reg_id}")
 async def editar_registro(
-    request: Request, reg_id: int, nombre: str = Form(...), fecha_nacimiento: str = Form(...), 
+    request: Request, reg_id: int, nombre: str = Form(...), fecha_registro: str = Form(...), fecha_nacimiento: str = Form(...), 
     seccion: str = Form(...), calle: str = Form(...), num_ext: str = Form(...), num_int: str = Form(""),
     cp: str = Form(...), fraccionamiento: str = Form(...), telefono: str = Form(...), folio_tarjeta: str = Form(...),
     foto_frente: str = Form(""), foto_reverso: str = Form("")
@@ -186,17 +266,18 @@ async def editar_registro(
     cursor = conn.cursor()
     
     updates = [
-        "nombre=%s", "fecha_nacimiento=%s", "seccion=%s", "calle=%s", "num_ext=%s", 
+        "nombre=%s", "fecha_registro=%s", "fecha_nacimiento=%s", "seccion=%s", "calle=%s", "num_ext=%s", 
         "num_int=%s", "cp=%s", "fraccionamiento=%s", "telefono=%s", "folio_tarjeta=%s"
     ]
-    values = [nombre, fecha_nacimiento, seccion, calle, num_ext, num_int, cp, fraccionamiento, telefono, folio_tarjeta]
+    values = [nombre, fecha_registro, fecha_nacimiento, seccion, calle, num_ext, num_int, cp, fraccionamiento, telefono, folio_tarjeta]
 
+    # Si enviaron un Base64 nuevo (el usuario subió otra foto al editar), se sube a S3
     if foto_frente:
         updates.append("foto_frente=%s")
-        values.append(foto_frente)
+        values.append(subir_a_s3(foto_frente, "frente"))
     if foto_reverso:
         updates.append("foto_reverso=%s")
-        values.append(foto_reverso)
+        values.append(subir_a_s3(foto_reverso, "reverso"))
 
     values.append(reg_id)
     query = f"UPDATE beneficiarios SET {', '.join(updates)} WHERE id=%s"
@@ -208,48 +289,39 @@ async def editar_registro(
     registrar_movimiento(user["username"], "Edición", f"Editó datos del beneficiario: {nombre} (ID: {reg_id})")
     return JSONResponse(content={"status": "success"})
 
-@app.post("/eliminar/{reg_id}")
-async def eliminar_registro(request: Request, reg_id: int):
-    user = get_current_user(request)
-    if not user or user["rol"] not in ["admin", "soporte"]:
-        return JSONResponse(content={"status": "error", "message": "Acceso denegado"}, status_code=403)
-        
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    cursor.execute("SELECT nombre FROM beneficiarios WHERE id = %s", (reg_id,))
-    beneficiario = cursor.fetchone()
-    
-    if beneficiario:
-        cursor.execute("DELETE FROM beneficiarios WHERE id = %s", (reg_id,))
-        conn.commit()
-        registrar_movimiento(user["username"], "Eliminación", f"Eliminó al beneficiario: {beneficiario['nombre']} (ID: {reg_id})")
-        
-    conn.close()
-    return JSONResponse(content={"status": "success"})
-
-def procesar_celda_imagen(worksheet, base64_str, row_idx, col_idx, col_letter):
-    if not base64_str:
-        return  
-        
-    if "application/pdf" in base64_str:
-        worksheet.cell(row=row_idx, column=col_idx).value = "📄 PDF Adjunto"
-        worksheet.cell(row=row_idx, column=col_idx).font = Font(color="0000FF", italic=True)
-        return
+def procesar_celda_imagen(worksheet, valor_bd, row_idx, col_idx, col_letter):
+    if not valor_bd: return  
 
     try:
-        format_str, img_str = base64_str.split(';base64,')
-        img_data = base64.b64decode(img_str)
-        
+        # Lógica si el registro es heredado (Base64 directo en BD)
+        if valor_bd.startswith("data:"):
+            if "application/pdf" in valor_bd:
+                worksheet.cell(row=row_idx, column=col_idx).value = "📄 PDF"
+                worksheet.cell(row=row_idx, column=col_idx).font = Font(color="0000FF", italic=True)
+                return
+            img_str = valor_bd.split(';base64,')[1]
+            img_data = base64.b64decode(img_str)
+            
+        # Lógica si el registro está en AWS S3
+        else:
+            if valor_bd.endswith(".pdf"):
+                worksheet.cell(row=row_idx, column=col_idx).value = "📄 PDF en S3"
+                worksheet.cell(row=row_idx, column=col_idx).font = Font(color="0000FF", italic=True)
+                return
+            
+            # Descargamos los bytes de la imagen desde S3 en memoria para ponerlos en el Excel
+            s3_response = s3_client.get_object(Bucket=S3_BUCKET, Key=valor_bd)
+            img_data = s3_response['Body'].read()
+
+        # Inserción en el Excel
         img = PILImage.open(BytesIO(img_data))
         img.thumbnail((60, 40)) 
-        
         img_io = BytesIO()
         img.save(img_io, format=img.format)
         img_io.seek(0)
         
         excel_img = ExcelImage(img_io)
-        cell_position = f"{col_letter}{row_idx}"
-        worksheet.add_image(excel_img, cell_position)
+        worksheet.add_image(excel_img, f"{col_letter}{row_idx}")
         
     except Exception as e:
         worksheet.cell(row=row_idx, column=col_idx).value = "Error al cargar"
@@ -262,18 +334,19 @@ async def descargar_excel(request: Request, con_imagenes: str = "true"):
     
     incluir_fotos = con_imagenes.lower() == "true"
     
-    texto_auditoria = "Descargó la base de datos en Excel (Con Imágenes)" if incluir_fotos else "Descargó la base de datos en Excel (Solo Texto)"
+    texto_auditoria = "Descargó la base de datos en Excel (Con Imágenes desde S3)" if incluir_fotos else "Descargó la base de datos en Excel (Solo Texto)"
     registrar_movimiento(user["username"], "Exportación", texto_auditoria)
     
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     cursor.execute('''
-        SELECT id AS "ID", folio_tarjeta AS "Folio", nombre AS "Nombre", 
+        SELECT id AS "ID", fecha_registro AS "F. Registro", folio_tarjeta AS "Folio", nombre AS "Nombre", 
                fecha_nacimiento AS "Nacimiento", seccion AS "Sección", 
                calle AS "Calle", num_ext AS "Num_Ext", num_int AS "Num_Int", 
                fraccionamiento AS "Fraccionamiento", cp AS "CP", telefono AS "Teléfono",
                foto_frente, foto_reverso
         FROM beneficiarios
+        ORDER BY id DESC
     ''')
     registros = cursor.fetchall()
     conn.close()
@@ -288,7 +361,8 @@ async def descargar_excel(request: Request, con_imagenes: str = "true"):
         white_font = Font(color="FFFFFF", bold=True, size=11)
         thin_border = Border(left=Side(style='thin', color='DDDDDD'), right=Side(style='thin', color='DDDDDD'), top=Side(style='thin', color='DDDDDD'), bottom=Side(style='thin', color='DDDDDD'))
         worksheet.freeze_panes = 'A2'
-        
+        worksheet.auto_filter.ref = worksheet.dimensions
+
         if incluir_fotos:
             col_frente_idx = len(df_display.columns) + 1
             col_reverso_idx = len(df_display.columns) + 2
@@ -330,9 +404,7 @@ async def descargar_excel(request: Request, con_imagenes: str = "true"):
             
     buffer.seek(0)
     
-    # Cambiamos el nombre del archivo dependiendo de la opción elegida
     nombre_archivo = "Base_Datos_Bienestar_CON_FOTOS.xlsx" if incluir_fotos else "Base_Datos_Bienestar_SOLO_TEXTO.xlsx"
-    
     return StreamingResponse(buffer, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers={'Content-Disposition': f'attachment; filename="{nombre_archivo}"'})
 
 @app.get("/usuarios", response_class=HTMLResponse)

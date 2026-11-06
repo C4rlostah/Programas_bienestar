@@ -29,7 +29,6 @@
     </style>
 </head>
 <body>
-    <!-- Barra de Navegación -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-gradient-guinda shadow-sm py-3 mb-4">
         <div class="container-fluid px-4">
             <a class="navbar-brand fw-bold fs-4" href="/"><i class="bi bi-database-fill me-2"></i>Base de Datos</a>
@@ -42,7 +41,6 @@
                         <a class="btn btn-light text-guinda fw-bold rounded-pill px-4 shadow-sm" href="/"><i class="bi bi-plus-lg me-2"></i>Nuevo Captura</a>
                     </li>
                     
-                    <!-- BOTÓN EXCEL DESPLEGABLE CON OPCIONES -->
                     <li class="nav-item dropdown">
                         <a class="btn btn-success fw-bold rounded-pill px-4 shadow-sm dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-file-earmark-excel-fill me-2"></i>Excel
@@ -77,6 +75,7 @@
                 <thead>
                     <tr>
                         <th class="text-start ps-4">Beneficiario</th>
+                        <th>Fecha Reg.</th>
                         <th>Folio</th>
                         <th>Sección</th>
                         <th class="text-start">Dirección</th>
@@ -90,8 +89,9 @@
                     <tr>
                         <td class="text-start ps-4">
                             <div class="fw-bold text-dark">{{ reg.nombre }}</div>
-                            <div class="text-muted small"><i class="bi bi-calendar3 me-1"></i>{{ reg.fecha_nacimiento }}</div>
+                            <div class="text-muted small"><i class="bi bi-balloon-fill me-1"></i>{{ reg.fecha_nacimiento }}</div>
                         </td>
+                        <td><span class="text-primary small fw-bold"><i class="bi bi-calendar-check me-1"></i>{{ reg.fecha_registro }}</span></td>
                         <td><span class="badge-folio">{{ reg.folio_tarjeta }}</span></td>
                         <td><span class="badge bg-light text-secondary border">{{ reg.seccion }}</span></td>
                         <td class="text-start text-muted small" style="max-width: 250px;">
@@ -109,7 +109,8 @@
                             </div>
                         </td>
                         <td class="text-end pe-4">
-                            <button class="btn btn-sm btn-outline-warning rounded-circle me-1 shadow-sm" style="width: 35px; height: 35px;" onclick="abrirModalEditar('{{ reg.id }}', '{{ reg.nombre }}', '{{ reg.fecha_nacimiento }}', '{{ reg.seccion }}', '{{ reg.calle }}', '{{ reg.num_ext }}', '{{ reg.num_int }}', '{{ reg.cp }}', '{{ reg.fraccionamiento }}', '{{ reg.telefono }}', '{{ reg.folio_tarjeta }}')"><i class="bi bi-pencil-fill"></i></button>
+                            <!-- SE AGREGÓ reg.fecha_registro AL MOMENTO DE ABRIR EL MODAL -->
+                            <button class="btn btn-sm btn-outline-warning rounded-circle me-1 shadow-sm" style="width: 35px; height: 35px;" onclick="abrirModalEditar('{{ reg.id }}', '{{ reg.nombre }}', '{{ reg.fecha_registro }}', '{{ reg.fecha_nacimiento }}', '{{ reg.seccion }}', '{{ reg.calle }}', '{{ reg.num_ext }}', '{{ reg.num_int }}', '{{ reg.cp }}', '{{ reg.fraccionamiento }}', '{{ reg.telefono }}', '{{ reg.folio_tarjeta }}')"><i class="bi bi-pencil-fill"></i></button>
                             <button class="btn btn-sm btn-outline-danger rounded-circle shadow-sm" style="width: 35px; height: 35px;" onclick="eliminarRegistro('{{ reg.id }}')"><i class="bi bi-trash3-fill"></i></button>
                         </td>
                     </tr>
@@ -150,8 +151,13 @@
                             <div class="col-md-4"><label class="form-label small fw-bold text-muted">Folio</label><input type="text" id="edit_folio" name="folio_tarjeta" class="form-control rounded-3 text-guinda fw-bold" required></div>
                         </div>
                         <div class="row g-3 mb-3">
-                            <div class="col-md-6"><label class="form-label small fw-bold text-muted">Nacimiento</label><input type="date" id="edit_fecha" name="fecha_nacimiento" class="form-control rounded-3" required></div>
-                            <div class="col-md-6"><label class="form-label small fw-bold text-muted">Sección</label><input type="text" id="edit_seccion" name="seccion" class="form-control rounded-3" pattern="^(\d+|N/A)$" required></div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold text-muted">F. Registro</label>
+                                <!-- NUEVO CAMPO DE EDICIÓN PARA LA FECHA DE REGISTRO -->
+                                <input type="date" id="edit_fecha_registro" name="fecha_registro" class="form-control rounded-3 text-primary fw-bold" style="background-color: #e8f4fd;" required>
+                            </div>
+                            <div class="col-md-4"><label class="form-label small fw-bold text-muted">Nacimiento</label><input type="date" id="edit_fecha" name="fecha_nacimiento" class="form-control rounded-3" required></div>
+                            <div class="col-md-4"><label class="form-label small fw-bold text-muted">Sección</label><input type="text" id="edit_seccion" name="seccion" class="form-control rounded-3" pattern="^(\d+|N/A)$" required></div>
                         </div>
                         <div class="row g-3 mb-3">
                             <div class="col-md-6"><label class="form-label small fw-bold text-muted">Calle</label><input type="text" id="edit_calle" name="calle" class="form-control rounded-3" required></div>
@@ -226,10 +232,11 @@
             }
         }
         
-        function abrirModalEditar(id, n, f, s, c, ne, ni, cp, fr, t, fol) {
+        function abrirModalEditar(id, n, f_reg, f_nac, s, c, ne, ni, cp, fr, t, fol) {
             document.getElementById('edit_id').value = id; 
             document.getElementById('edit_nombre').value = n; 
-            document.getElementById('edit_fecha').value = f; 
+            document.getElementById('edit_fecha_registro').value = f_reg; // Pasando el nuevo dato al formulario de edición
+            document.getElementById('edit_fecha').value = f_nac; 
             document.getElementById('edit_seccion').value = s; 
             document.getElementById('edit_calle').value = c; 
             document.getElementById('edit_ext').value = ne; 

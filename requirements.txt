@@ -25,3 +25,4 @@ itsdangerous==2.2.0
 python-dotenv
 openpyxl
 Pillow
+boto3

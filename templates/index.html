@@ -80,10 +80,19 @@
 
                 <form id="formularioRegistro" autocomplete="off" enctype="multipart/form-data">
                     <div class="section-title"><i class="bi bi-person-badge me-2"></i>Datos Personales</div>
-                    <div class="mb-3">
-                        <label class="form-label text-muted small fw-bold mb-1">Nombre Completo</label>
-                        <input type="text" name="nombre" id="form_nombre" class="form-control" required>
+                    
+                    <div class="row">
+                        <div class="col-8 mb-3">
+                            <label class="form-label text-muted small fw-bold mb-1">Nombre Completo</label>
+                            <input type="text" name="nombre" id="form_nombre" class="form-control" required>
+                        </div>
+                        <div class="col-4 mb-3">
+                            <label class="form-label text-muted small fw-bold mb-1">F. Registro</label>
+                            <!-- El input de fecha de captura -->
+                            <input type="date" name="fecha_registro" id="form_fecha_registro" class="form-control text-primary fw-bold" style="background-color: #e8f4fd; border-color: #b6d4fe;" required>
+                        </div>
                     </div>
+                    
                     <div class="row">
                         <div class="col-6 mb-3"><label class="form-label text-muted small fw-bold mb-1">F. Nacimiento</label><input type="date" name="fecha_nacimiento" id="form_fecha" class="form-control" required></div>
                         <div class="col-6 mb-3"><label class="form-label text-muted small fw-bold mb-1">Sección</label><input type="text" name="seccion" id="form_seccion" class="form-control" pattern="^(\d+|N/A)$" oninput="this.value = this.value.toUpperCase();" required placeholder="0123"></div>
@@ -254,6 +263,18 @@
 
     <script>
         
+        // --- NUEVA FUNCIÓN PARA EXTRAER LA FECHA EXACTA DE TU ZONA HORARIA ---
+        function obtenerFechaLocal() {
+            const fecha = new Date();
+            const año = fecha.getFullYear();
+            const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+            const dia = String(fecha.getDate()).padStart(2, '0');
+            return `${año}-${mes}-${dia}`;
+        }
+
+        // Poner la fecha local de hoy por defecto al cargar la página
+        document.getElementById('form_fecha_registro').value = obtenerFechaLocal();
+
         function toggleNumInt() {
             const input = document.getElementById('form_num_int');
             const check = document.getElementById('check_int_na');
@@ -283,7 +304,6 @@
             }
         }
 
-        // NUEVO: SISTEMA DE ARCHIVOS Y PDF HÍBRIDO
         function procesarArchivoSubido(inputElement, objetivo) {
             const file = inputElement.files[0];
             if (!file) return;
@@ -294,37 +314,29 @@
             const hiddenInput = document.getElementById(`input_${objetivo}`);
 
             if (file.type === 'application/pdf') {
-                // Es un PDF
                 preview.style.display = 'none';
                 textInfo.innerHTML = `<i class="bi bi-file-earmark-pdf-fill text-danger fs-1"></i><small class="d-block mt-1 text-dark fw-bold">PDF Cargado</small><small class="text-muted d-block text-truncate" style="max-width:90%; font-size:10px;">${file.name}</small>`;
                 textInfo.style.display = 'block';
-                
-                // Limpiamos el hidden input de base64 por si había una foto tomada antes
                 hiddenInput.value = "";
                 box.style.borderStyle = "solid";
                 box.style.borderColor = "#198754";
                 
             } else if (file.type.startsWith('image/')) {
-                // Es una imagen (JPG, PNG)
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     preview.src = e.target.result;
                     preview.style.display = 'block';
                     textInfo.style.display = 'none';
-                    hiddenInput.value = e.target.result; // Guardamos en Base64 para que sea compatible con tu backend
-                    
+                    hiddenInput.value = e.target.result; 
                     box.style.borderStyle = "solid";
                     box.style.borderColor = "#198754";
                 };
                 reader.readAsDataURL(file);
             } else {
                 Swal.fire('Formato no soportado', 'Por favor sube una imagen (JPG, PNG) o un archivo PDF.', 'warning');
-                inputElement.value = ""; // Limpiamos el input
+                inputElement.value = ""; 
             }
         }
-
-
-        // --- SISTEMA DE CÁMARA E IA OPTIMIZADO ---
         
         let streamActual = null, trackActual = null, objetivoActual = '', linternaEncendida = false;
         let workerIA = null; 
@@ -408,7 +420,6 @@
             canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height); 
             const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
             
-            // Limpiamos los inputs de tipo File para no generar conflictos con el servidor
             document.getElementById(`file_${objetivoActual}`).value = "";
             document.getElementById(`input_${objetivoActual}`).value = dataUrl; 
             
@@ -438,28 +449,20 @@
             tempCanvas.width = cropW; tempCanvas.height = cropH;
             const ctx = tempCanvas.getContext('2d');
             
-            // FILTRO SÚPER OPTIMIZADO PARA INEs 
-            // Aumentamos el contraste a 300% y bajamos un poco el brillo para volver las letras "negras como carbón" 
-            // y el fondo de la INE totalmente "blanco", destruyendo hologramas.
             ctx.filter = 'contrast(300%) grayscale(100%) brightness(90%)';
             ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH); 
             
             const dataUrl = tempCanvas.toDataURL('image/jpeg', 1.0);
 
             try {
-                // Configuramos a Tesseract para que sea tolerante y lea TODO el bloque
                 const result = await workerIA.recognize(dataUrl);
                 const textoPlano = result.data.text.toUpperCase();
-                
                 let camposEncontrados = 0;
                 
-                // Limpiamos la lectura y filtramos basuritas
                 const lineas = textoPlano.split('\n')
                     .map(l => l.trim().replace(/[^A-ZÁÉÍÓÚÑ0-9\s]/g, ''))
                     .filter(l => l.length > 3);
                 
-                // EXTRACCIÓN DE NOMBRE (Tolerante)
-                // Ahora, si lee "N0MBRE", "NOMBR3" o similar, también lo acepta.
                 let flagNombre = false;
                 let nombreCompleto = [];
                 for (let i = 0; i < lineas.length; i++) {
@@ -467,7 +470,6 @@
                     if (lineas[i].includes("DOMICILIO") || lineas[i].includes("EDAD")) { flagNombre = false; }
                     
                     if (flagNombre && nombreCompleto.length < 3) {
-                        // Limpia números del nombre (por si lee un holograma cerca de la letra)
                         let textoLimpio = lineas[i].replace(/[^A-ZÁÉÍÓÚÑ\s]/g, '').trim();
                         if (textoLimpio.length > 2 && textoLimpio !== "MEXICO") nombreCompleto.push(textoLimpio);
                     }
@@ -477,16 +479,12 @@
                     camposEncontrados++;
                 }
 
-                // EXTRACCIÓN DE SECCIÓN (Súper tolerante)
-                // Ahora puede leer S3CC1ON, SECC, etc.
                 let matchSeccion = textoPlano.match(/S[E3]CC[I1][O0Ó][NMN][\s:.-]*(\d{4})/i) || textoPlano.match(/S[E3]CC[\s:.-]*(\d{4})/i);
                 if (matchSeccion) { document.getElementById('form_seccion').value = matchSeccion[1]; camposEncontrados++; }
 
-                // EXTRACCIÓN DE CP
                 let matchCP = textoPlano.match(/C\.?[PFR]\.?[\s:.-]*(\d{5})/i) || textoPlano.match(/\b(\d{5})\b/);
                 if (matchCP) { document.getElementById('form_cp').value = matchCP[1]; camposEncontrados++; }
 
-                // EXTRACCIÓN DE FECHA Y CURP
                 let matchFecha = textoPlano.match(/(\d{2})[\/\.-](\d{2})[\/\.-](\d{4})/);
                 let curpMatch = textoPlano.match(/[A-Z]{4}(\d{6})[HM][A-Z]{5}[A-Z0-9]\d/);
                 if (curpMatch) {
@@ -500,7 +498,6 @@
                     camposEncontrados++;
                 }
 
-                // EXTRACCIÓN DE DOMICILIO
                 let idxDom = lineas.findIndex(l => l.includes("DOMICILIO") || l.includes("DOMICIL"));
                 if (idxDom !== -1) {
                     let dom1 = lineas[idxDom + 1] || ""; 
@@ -568,7 +565,6 @@
             }
         }
 
-        // GUARDADO FINAL AL SERVIDOR (SOPORTA ARCHIVOS Y BASE64)
         document.getElementById('formularioRegistro').addEventListener('submit', async function(e) {
             e.preventDefault(); 
             
@@ -582,8 +578,6 @@
             btn.disabled = true;
             
             try {
-                // Como tenemos un form con enctype="multipart/form-data" y inputs tipo "file", 
-                // el FormData recogerá automáticamente tanto el texto como los PDFs/Fotos que se hayan subido.
                 const response = await fetch('/agregar', { method: 'POST', body: new FormData(this) }); 
                 
                 if (!response.ok) { Swal.fire('Error', 'Hubo un problema al contactar el servidor.', 'error'); btn.innerHTML = btnOriginalText; btn.disabled = false; return; }
@@ -593,11 +587,13 @@
                     Swal.fire({ title: '¡Expediente Guardado!', icon: 'success', timer: 1500, showConfirmButton: false}); 
                     this.reset(); 
                     
+                    // Volver a configurar la fecha de captura al día de hoy local para el siguiente registro
+                    document.getElementById('form_fecha_registro').value = obtenerFechaLocal();
+
                     document.getElementById('form_fraccionamiento').style.display = 'none';
                     document.getElementById('check_int_na').checked = false;
                     toggleNumInt();
 
-                    // Limpieza total visual y de variables de archivo
                     ['frente', 'reverso'].forEach(o => { 
                         document.getElementById(`input_${o}`).value = ""; 
                         document.getElementById(`file_${o}`).value = ""; 
