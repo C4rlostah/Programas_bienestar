@@ -314,22 +314,61 @@
             const hiddenInput = document.getElementById(`input_${objetivo}`);
 
             if (file.type === 'application/pdf') {
+                // LÍMITE ESTRICTO PARA PDF: 800 KB (800 * 1024 bytes)
+                if (file.size > 819200) { 
+                    Swal.fire({
+                        title: 'PDF muy pesado', 
+                        text: 'El archivo PDF supera el límite de 800 KB. Por favor, toma una fotografía directa de la credencial para evitar errores.', 
+                        icon: 'warning',
+                        customClass: { popup: 'rounded-4' }
+                    });
+                    inputElement.value = "";
+                    return;
+                }
+                
                 preview.style.display = 'none';
                 textInfo.innerHTML = `<i class="bi bi-file-earmark-pdf-fill text-danger fs-1"></i><small class="d-block mt-1 text-dark fw-bold">PDF Cargado</small><small class="text-muted d-block text-truncate" style="max-width:90%; font-size:10px;">${file.name}</small>`;
                 textInfo.style.display = 'block';
-                hiddenInput.value = "";
-                box.style.borderStyle = "solid";
-                box.style.borderColor = "#198754";
                 
-            } else if (file.type.startsWith('image/')) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    preview.src = e.target.result;
-                    preview.style.display = 'block';
-                    textInfo.style.display = 'none';
                     hiddenInput.value = e.target.result; 
                     box.style.borderStyle = "solid";
                     box.style.borderColor = "#198754";
+                };
+                reader.readAsDataURL(file);
+                
+            } else if (file.type.startsWith('image/')) {
+                // COMPRESIÓN PARA IMÁGENES DE GALERÍA
+                Swal.fire({ title: 'Procesando...', text: 'Optimizando imagen...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); }});
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        // Crear un canvas virtual para achicar la foto
+                        const MAX_WIDTH = 1024;
+                        const scale = Math.min(1, MAX_WIDTH / img.width);
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width * scale;
+                        canvas.height = img.height * scale;
+                        
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        
+                        // Exportar como JPEG al 70% de calidad
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+
+                        preview.src = dataUrl;
+                        preview.style.display = 'block';
+                        textInfo.style.display = 'none';
+                        hiddenInput.value = dataUrl; 
+                        box.style.borderStyle = "solid";
+                        box.style.borderColor = "#198754";
+                        
+                        Swal.close();
+                    };
+                    img.src = e.target.result;
                 };
                 reader.readAsDataURL(file);
             } else {
@@ -415,10 +454,21 @@
         }
         
         function capturarFotoManual() {
-            const video = document.getElementById('video'), canvas = document.getElementById('canvas'); 
-            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height); 
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas'); 
+            
+            // ESCALA: Reducir resolución para no saturar el servidor de FastAPI
+            const MAX_WIDTH = 1024;
+            const scale = Math.min(1, MAX_WIDTH / video.videoWidth);
+            
+            canvas.width = video.videoWidth * scale; 
+            canvas.height = video.videoHeight * scale;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height); 
+            
+            // COMPRESIÓN: Exportar en formato JPEG al 70% de calidad
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
             
             document.getElementById(`file_${objetivoActual}`).value = "";
             document.getElementById(`input_${objetivoActual}`).value = dataUrl; 
